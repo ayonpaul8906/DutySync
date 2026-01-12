@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, MapPin, Circle, ChevronRight, Navigation2, Map as MapIcon } from 'lucide-react';
+import { User, MapPin, Circle, ChevronRight, Navigation2} from 'lucide-react';
 
 interface TaskCardProps {
   passenger?: string;
@@ -8,7 +8,7 @@ interface TaskCardProps {
   tourLocation?: string;
   status: "assigned" | "in-progress" | "completed";
   onStart?: () => void;
-  onComplete?: () => void;
+  onComplete?: () => void;  
   task?: any;
   onAction?: (task?: any) => void;
 }

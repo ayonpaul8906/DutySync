@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { signOut } from "firebase/auth";
 import {
   collection,
@@ -376,7 +377,7 @@ function Stat({
   value,
   bg,
 }: {
-  icon: JSX.Element;
+  icon: ReactNode;
   label: string;
   value: number;
   bg: string;
