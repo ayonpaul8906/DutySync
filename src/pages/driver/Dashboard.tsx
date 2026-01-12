@@ -17,7 +17,6 @@ import {
   MdPlayCircle,
   MdFlag,
   MdClose,
-  MdDirections,
   MdCheckCircle,
   MdAccessTime,
   MdMap,
@@ -27,13 +26,14 @@ import {
 
 interface Task {
   id: string;
-  pickup: string;
-  drop: string;
+  tourLocation?: string;
+  pickup?: string;
+  drop?: string;
   status: "assigned" | "in-progress" | "completed";
   passenger?: { name?: string };
   date?: string;
   createdAt?: any;
-}
+} 
 
 /* ================= HELPERS ================= */
 
@@ -175,6 +175,7 @@ export default function DriverDashboard() {
 
       await updateDoc(doc(db, "drivers", uid), {
         activeStatus: "active",
+        active: true,
         totalKilometers: increment(kms),
       });
 
@@ -262,7 +263,7 @@ export default function DriverDashboard() {
                           {task.passenger?.name || "Passenger"}
                         </p>
                         <p className="text-sm text-slate-500">
-                          {task.pickup} → {task.drop}
+                          {task.tourLocation ?? (task.pickup && task.drop ? `${task.pickup} → ${task.drop}` : (task.pickup || task.drop || ""))}
                         </p>
                       </div>
 
@@ -312,7 +313,7 @@ export default function DriverDashboard() {
                         {task.passenger?.name || "Passenger"}
                       </p>
                       <p className="text-sm text-slate-500 mt-1">
-                        {task.pickup} → {task.drop}
+                        {task.tourLocation ?? (task.pickup && task.drop ? `${task.pickup} → ${task.drop}` : (task.pickup || task.drop || ""))}
                       </p>
                       <span className="inline-block mt-3 text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">
                         Completed

@@ -25,8 +25,7 @@ export default function AssignDuty() {
   const [dutyData, setDutyData] = useState({
     driverId: "",
     driverName: "",
-    pickup: "",
-    drop: "",
+    tourLocation: "",
     date: "",
     time: "",
     notes: "",
@@ -69,7 +68,7 @@ export default function AssignDuty() {
 
   /* ================= ASSIGN DUTY ================= */
   async function handleAssign() {
-    if (!dutyData.driverId || !passenger.name || !dutyData.pickup) {
+    if (!dutyData.driverId || !passenger.name || !dutyData.tourLocation) {
       alert("Please fill required fields");
       return;
     }
@@ -80,14 +79,13 @@ export default function AssignDuty() {
       const payload: any = {
         driverId: dutyData.driverId,
         driverName: dutyData.driverName,
-        pickup: dutyData.pickup,
-        drop: dutyData.drop,
+        tourLocation: dutyData.tourLocation,
         notes: dutyData.notes,
         passenger,
         status: "assigned",
         kilometers: 0,
         createdAt: serverTimestamp(),
-      };
+      }; 
 
       if (dutyData.date) {
         // store date-only as Date (00:00 local)
@@ -184,11 +182,8 @@ export default function AssignDuty() {
           </button>
 
           {/* INPUTS */}
-          <Input label="Pickup Point" value={dutyData.pickup}
-            onChange={(v) => setDutyData({ ...dutyData, pickup: v })} />
-
-          <Input label="Drop Point" value={dutyData.drop}
-            onChange={(v) => setDutyData({ ...dutyData, drop: v })} />
+          <Input label="Tour Location" value={dutyData.tourLocation}
+            onChange={(v) => setDutyData({ ...dutyData, tourLocation: v })} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Tour Date" type="date" value={dutyData.date} 
@@ -198,7 +193,7 @@ export default function AssignDuty() {
           </div>
 
           <Input
-            label="Internal Notes"
+            label="Additional Notes"
             value={dutyData.notes}
             multiline
             onChange={(v) => setDutyData({ ...dutyData, notes: v })}

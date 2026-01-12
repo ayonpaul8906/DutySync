@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { auth, db } from "../../services/firebase";
+import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
   MdChevronLeft,
@@ -12,11 +12,12 @@ import {
 interface Task {
   id: string;
   passengerName: string;
-  pickup: string;
-  drop: string;
+  tourLocation?: string;
+  pickup?: string;
+  drop?: string;
   status: "assigned" | "in-progress" | "completed";
   date?: string;
-}
+} 
 
 /* ================= COMPONENT ================= */
 
@@ -109,7 +110,7 @@ export default function MyDuties() {
               </p>
 
               <p className="text-sm text-slate-500 mt-1">
-                {task.pickup} → {task.drop}
+                {task.tourLocation ?? (task.pickup && task.drop ? `${task.pickup} → ${task.drop}` : (task.pickup || task.drop || ""))}
               </p>
 
               <div className="mt-3">
