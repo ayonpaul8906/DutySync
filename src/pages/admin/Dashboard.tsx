@@ -12,6 +12,7 @@ import {
   MdOutlineAddCircle,
   MdGroups,
   MdLocationOn,
+  MdFiberManualRecord,
 } from "react-icons/md";
 
 interface DashboardStats {
@@ -30,7 +31,6 @@ export default function AdminDashboard() {
     pending: 0,
   });
 
-  // 🔥 Real-time fleet stats
   useEffect(() => {
     const q = query(collection(db, "tasks"));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -52,30 +52,42 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-6xl mx-auto px-5 py-6">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      {/* Top Decorative Bar */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600"></div>
 
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        
         {/* ================= HEADER ================= */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-end mb-10">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              System Administrator
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-              AMPL Fleet Control
+            <div className="flex items-center gap-2 mb-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                System Live • Fleet Command
+              </p>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
+              AMPL <span className="text-blue-600">Control</span>
             </h1>
           </div>
 
           <button
             onClick={handleLogout}
-            className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center hover:scale-105 transition"
+            className="group flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-100 hover:bg-red-50 transition-all duration-300 shadow-sm"
           >
-            <MdPowerSettingsNew className="text-red-500 text-xl" />
+            <span className="text-sm font-bold">Logout</span>
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-red-100 transition-colors">
+              <MdPowerSettingsNew className="text-lg" />
+            </div>
           </button>
         </div>
 
         {/* ================= STATS GRID ================= */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
           <StatCard
             title="Total Duties"
             value={stats.total}
@@ -103,37 +115,55 @@ export default function AdminDashboard() {
         </div>
 
         {/* ================= ACTIONS ================= */}
-        <h2 className="text-lg font-bold text-slate-800 mb-4">
-          Management Console
-        </h2>
+        <div className="flex items-center gap-3 mb-6">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">
+            Management Console
+          </h2>
+          <div className="h-[1px] flex-1 bg-slate-200"></div>
+        </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* Live Tracking */}
           <button
             onClick={() => navigate("/live-tracking")}
-            className="flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-slate-900 text-white font-bold text-base shadow hover:scale-[1.02] transition"
+            className="group relative overflow-hidden flex flex-col items-start p-6 rounded-3xl bg-slate-900 text-white shadow-2xl shadow-slate-200 hover:scale-[1.02] transition-all duration-300"
           >
-            <MdLocationOn className="text-xl" />
-            Live Fleet Tracking
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                <MdLocationOn size={120} />
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 backdrop-blur-md">
+                <MdLocationOn className="text-2xl text-blue-400" />
+            </div>
+            <span className="text-lg font-bold">Live Fleet</span>
+            <span className="text-slate-400 text-xs font-medium">Real-time GPS tracking</span>
           </button>
 
           {/* Assign Duty */}
           <button
             onClick={() => navigate("/assign-duty")}
-            className="flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-blue-600 text-white font-bold text-base shadow hover:scale-[1.02] transition"
+            className="group relative overflow-hidden flex flex-col items-start p-6 rounded-3xl bg-blue-600 text-white shadow-2xl shadow-blue-100 hover:scale-[1.02] transition-all duration-300"
           >
-            <MdOutlineAddCircle className="text-xl" />
-            Assign New Duty
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                <MdOutlineAddCircle size={120} />
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 backdrop-blur-md">
+                <MdOutlineAddCircle className="text-2xl text-white" />
+            </div>
+            <span className="text-lg font-bold">Dispatch Duty</span>
+            <span className="text-blue-100 text-xs font-medium">Assign new tasks to drivers</span>
           </button>
 
           {/* Manage Drivers */}
           <button
             onClick={() => navigate("/manage-drivers")}
-            className="flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-800 font-bold text-base hover:bg-slate-100 transition"
+            className="group flex flex-col items-start p-6 rounded-3xl bg-white border border-slate-200 text-slate-800 shadow-sm hover:bg-slate-50 hover:border-blue-200 transition-all duration-300"
           >
-            <MdGroups className="text-xl" />
-            Manage Drivers
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 group-hover:bg-blue-50 transition-colors">
+                <MdGroups className="text-2xl text-slate-600 group-hover:text-blue-600" />
+            </div>
+            <span className="text-lg font-bold text-slate-900">Manage Drivers</span>
+            <span className="text-slate-500 text-xs font-medium">View personnel records</span>
           </button>
 
         </div>
@@ -156,24 +186,47 @@ function StatCard({
   color: "indigo" | "green" | "amber" | "slate";
 }) {
   const colorMap: any = {
-    indigo: "text-indigo-500 bg-indigo-100",
-    green: "text-green-500 bg-green-100",
-    amber: "text-amber-500 bg-amber-100",
-    slate: "text-slate-500 bg-slate-200",
+    indigo: {
+        bg: "bg-indigo-50",
+        icon: "text-indigo-600 bg-indigo-100",
+        border: "border-indigo-100"
+    },
+    green: {
+        bg: "bg-green-50",
+        icon: "text-green-600 bg-green-100",
+        border: "border-green-100"
+    },
+    amber: {
+        bg: "bg-amber-50",
+        icon: "text-amber-600 bg-amber-100",
+        border: "border-amber-100"
+    },
+    slate: {
+        bg: "bg-slate-50",
+        icon: "text-slate-600 bg-slate-200",
+        border: "border-slate-200"
+    },
   };
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+    <div className={`relative bg-white p-6 rounded-[2rem] border ${colorMap[color].border} shadow-sm overflow-hidden group hover:shadow-md transition-shadow`}>
       <div
-        className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${colorMap[color]}`}
+        className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-300 ${colorMap[color].icon}`}
       >
-        <span className="text-xl">{icon}</span>
+        <span className="text-2xl">{icon}</span>
       </div>
 
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">
-        {title}
-      </p>
+      <div className="relative z-10">
+        <p className="text-3xl font-black text-slate-900 tabular-nums leading-none">
+            {value}
+        </p>
+        <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.15em]">
+            {title}
+        </p>
+      </div>
+      
+      {/* Subtle Background Accent */}
+      <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full opacity-[0.03] ${colorMap[color].icon}`}></div>
     </div>
   );
 }
