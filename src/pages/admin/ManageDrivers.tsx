@@ -7,6 +7,8 @@ import {
   MdSearch,
   MdChevronRight,
   MdLocationOn,
+  MdFiberManualRecord,
+  MdPeople,
 } from "react-icons/md";
 
 interface Driver {
@@ -44,28 +46,47 @@ export default function ManageDrivers() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 px-5 py-6">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#f8fafc] pb-20">
+      <div className="h-1.5 w-full bg-blue-600"></div>
 
+      <div className="max-w-4xl mx-auto px-6 py-10">
+        
         {/* ================= HEADER ================= */}
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl bg-white hover:bg-slate-100 border"
-          >
-            <MdArrowBack className="text-xl text-slate-800" />
-          </button>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Fleet Personnel
-          </h1>
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-5">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-3 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-100 hover:shadow-lg hover:shadow-blue-50 transition-all duration-300"
+            >
+              <MdArrowBack size={24} />
+            </button>
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+                Fleet <span className="text-blue-600">Personnel</span>
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                 <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+                 <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+                    Directory Management
+                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-2xl font-black text-slate-900 leading-none">{drivers.length}</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Drivers</span>
+          </div>
         </div>
 
-        {/* ================= SEARCH ================= */}
-        <div className="flex items-center gap-3 bg-white border rounded-xl px-4 h-12 mb-6">
-          <MdSearch className="text-slate-400 text-lg" />
+        {/* ================= SEARCH BAR ================= */}
+        <div className="relative group mb-8">
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
+            <MdSearch size={22} />
+          </div>
           <input
-            className="flex-1 outline-none text-slate-800"
-            placeholder="Search drivers by name..."
+            className="w-full h-16 bg-white border border-slate-200 rounded-[1.25rem] pl-14 pr-6 text-slate-800 font-semibold placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 shadow-sm transition-all"
+            placeholder="Search drivers by name or identifier..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -73,22 +94,25 @@ export default function ManageDrivers() {
 
         {/* ================= CONTENT ================= */}
         {loading ? (
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+          <div className="flex flex-col justify-center items-center h-64 space-y-4">
+            <div className="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full" />
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing Records</p>
           </div>
         ) : filteredDrivers.length === 0 ? (
-          <p className="text-center text-slate-500 mt-10">
-            No drivers found.
-          </p>
+          <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100 shadow-sm">
+            <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <MdPeople className="text-slate-300 text-3xl" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">No personnel found</h3>
+            <p className="text-slate-500 text-sm mt-1">Try adjusting your search keywords.</p>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
             {filteredDrivers.map((driver) => (
               <DriverCard
                 key={driver.id}
                 driver={driver}
-                onView={() =>
-                  navigate(`/admin/driver-details/${driver.id}`)
-                }
+                onView={() => navigate(`/admin/driver-details/${driver.id}`)}
               />
             ))}
           </div>
@@ -107,50 +131,85 @@ function DriverCard({
   driver: Driver;
   onView: () => void;
 }) {
+  // Safe status check
   const status = driver.status || "active";
 
+  // Fixed mapping to prevent 'undefined' property access
+  const statusConfig: any = {
+    "on-duty": {
+      container: "bg-amber-50 text-amber-700 border-amber-100",
+      dot: "bg-amber-500"
+    },
+    "active": {
+      container: "bg-green-50 text-green-700 border-green-100",
+      dot: "bg-green-500"
+    },
+    "offline": {
+      container: "bg-slate-50 text-slate-700 border-slate-200",
+      dot: "bg-slate-400"
+    }
+  };
+
+  const currentStatus = statusConfig[status] || statusConfig["active"];
+
   return (
-    <div className="bg-white border rounded-2xl p-4 shadow-sm">
-
-      {/* HEADER */}
-      <div className="flex items-center gap-4 mb-4">
-        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-          <span className="text-lg font-bold text-blue-600">
-            {driver.name?.charAt(0)}
-          </span>
+    <div 
+        onClick={onView}
+        className="group bg-white border border-slate-100 rounded-[1.5rem] p-5 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-blue-100 transition-all duration-300 cursor-pointer"
+    >
+      <div className="flex items-center gap-5">
+        
+        {/* AVATAR */}
+        <div className="relative">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform duration-300">
+              <span className="text-xl font-black text-blue-600">
+                  {driver.name?.charAt(0) || "?"}
+              </span>
+            </div>
+            {/* Live Indicator Dot */}
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${currentStatus.dot}`}>
+                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+            </div>
         </div>
 
+        {/* DETAILS */}
         <div className="flex-1">
-          <p className="font-bold text-slate-900">{driver.name}</p>
-          <p className="text-sm text-slate-500">{driver.email}</p>
+          <div className="flex items-center gap-3">
+            <p className="font-black text-slate-900 text-lg leading-tight group-hover:text-blue-600 transition-colors">
+                {driver.name}
+            </p>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border flex items-center gap-1.5 ${currentStatus.container}`}
+            >
+              <MdFiberManualRecord size={10} />
+              {status}
+            </span>
+          </div>
+          <p className="text-sm font-medium text-slate-500 mt-0.5">{driver.email}</p>
         </div>
 
-        <span
-          className={`px-2 py-1 rounded-lg text-xs font-bold uppercase
-          ${
-            status === "on-duty"
-              ? "bg-amber-100 text-amber-700"
-              : "bg-green-100 text-green-700"
-          }`}
-        >
-          {status}
-        </span>
+        <div className="hidden sm:flex w-10 h-10 rounded-full items-center justify-center text-slate-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
+            <MdChevronRight size={24} />
+        </div>
       </div>
 
-      {/* FOOTER */}
-      <div className="flex justify-between items-center border-t pt-3">
-        <div className="flex items-center gap-2 text-slate-600 text-sm font-semibold">
-          <MdLocationOn />
-          {driver.totalKms || 0} km
+      {/* FOOTER INFO */}
+      <div className="mt-5 pt-4 border-t border-slate-50 flex justify-between items-center">
+        <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                    <MdLocationOn size={18} />
+                </div>
+                <div>
+                    <p className="text-xs font-black text-slate-900 tabular-nums">{driver.totalKms || 0} KM</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Total Lifetime</p>
+                </div>
+            </div>
         </div>
 
-        <button
-          onClick={onView}
-          className="flex items-center gap-1 text-blue-600 font-semibold text-sm hover:underline"
-        >
-          View Details
-          <MdChevronRight />
-        </button>
+        <span className="text-xs font-black text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+          Review Profile <MdChevronRight />
+        </span>
       </div>
     </div>
   );
