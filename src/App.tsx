@@ -1,12 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
+
+/* PAGES */
+import LandingPage from "./pages/LandingPage";
 import Login from "./pages/auth/Login";
+
 import AdminDashboard from "./pages/admin/Dashboard";
-import DriverDashboard from "./pages/driver/Dashboard";
 import AssignDuty from "./pages/admin/AssignDuty";
 import ManageDrivers from "./pages/admin/ManageDrivers";
 import LiveTracking from "./pages/admin/LiveTracking";
+
+import DriverDashboard from "./pages/driver/Dashboard";
+
+/* ================= APP ================= */
 
 export default function App() {
   const { user, role, loading } = useContext(AuthContext);
@@ -22,28 +29,91 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
 
+        {/* ================= PUBLIC ================= */}
+
+        {/* Landing Page (BEFORE login) */}
         <Route
           path="/"
           element={
-            user ? (
-              role === "admin" ? (
-                <Navigate to="/admin" />
-              ) : (
-                <Navigate to="/driver" />
-              )
+            !user ? (
+              <LandingPage />
+            ) : role === "admin" ? (
+              <Navigate to="/admin" />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/driver" />
             )
           }
         />
 
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/driver" element={<DriverDashboard />} />
-        <Route path="/assign-duty" element={<AssignDuty />} />
-        <Route path="/manage-drivers" element={<ManageDrivers />} />
-        <Route path="/live-tracking" element={<LiveTracking />} />
+        {/* Login */}
+        <Route
+          path="/login"
+          element={!user ? <Login /> : <Navigate to="/" />}
+        />
+
+        {/* ================= ADMIN ================= */}
+
+        <Route
+          path="/admin"
+          element={
+            user && role === "admin" ? (
+              <AdminDashboard />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        <Route
+          path="/assign-duty"
+          element={
+            user && role === "admin" ? (
+              <AssignDuty />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        <Route
+          path="/manage-drivers"
+          element={
+            user && role === "admin" ? (
+              <ManageDrivers />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        <Route
+          path="/live-tracking"
+          element={
+            user && role === "admin" ? (
+              <LiveTracking />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        {/* ================= DRIVER ================= */}
+
+        <Route
+          path="/driver"
+          element={
+            user && role === "driver" ? (
+              <DriverDashboard />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        {/* ================= FALLBACK ================= */}
+        <Route path="*" element={<Navigate to="/" />} />
+
       </Routes>
     </BrowserRouter>
   );
