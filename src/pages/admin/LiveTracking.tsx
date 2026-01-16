@@ -16,6 +16,7 @@ import {
   MdMyLocation,
   MdAccessTime,
   MdPerson,
+  MdDirectionsCar,
 } from "react-icons/md";
 
 /* ================= TYPES ================= */
@@ -31,48 +32,61 @@ interface Driver {
 }
 
 /* ================= MAP CONTROLLER (FLY-TO) ================= */
-// This component handles the smooth movement when a driver is selected
 function MapController({ selectedLocation }: { selectedLocation: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
     if (selectedLocation) {
       map.flyTo(selectedLocation, 16, {
-        duration: 1.5,
+        duration: 2, // Smooth 2-second flight
+        easeLinearity: 0.25,
       });
     }
   }, [selectedLocation, map]);
   return null;
 }
 
+/* ================= PREMIUM VEHICLE ICON ================= */
 const driverIcon = new L.DivIcon({
   className: "custom-driver-marker",
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
+  iconSize: [50, 50],
+  iconAnchor: [25, 25],
   html: `
-    <div style="position: relative;">
+    <div style="position: relative; display: flex; justify-content: center; align-items: center;">
       <div class="marker-pulse"></div>
-      <div class="marker-core"></div>
+      
+      <div class="car-wrapper">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 10l1.5-4.5h11L19 10H5z"/>
+        </svg>
+      </div>
     </div>
     <style>
       .marker-pulse {
         position: absolute;
-        width: 40px; height: 40px;
+        width: 48px; height: 48px;
         background: rgba(37, 99, 235, 0.2);
         border-radius: 50%;
         animation: pulse-ring 2s infinite ease-in-out;
       }
-      .marker-core {
+      .car-wrapper {
         position: relative;
-        width: 14px; height: 14px;
+        width: 38px; height: 38px;
         background: #2563EB;
-        border: 2px solid #ffffff;
-        border-radius: 50%;
-        box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        margin: 13px;
+        border: 3px solid white;
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .custom-driver-marker:hover .car-wrapper {
+        transform: scale(1.15) translateY(-5px);
+        background: #1e40af;
       }
       @keyframes pulse-ring {
-        0% { transform: scale(0.33); opacity: 1; }
-        80%, 100% { transform: scale(1); opacity: 0; }
+        0% { transform: scale(0.5); opacity: 1; }
+        80%, 100% { transform: scale(1.4); opacity: 0; }
       }
     </style>
   `,
@@ -98,7 +112,7 @@ export default function LiveTracking() {
     return () => unsub();
   }, []);
 
-  /* ================= LOGIC ================= */
+  /* ================= MEMOIZED LOGIC ================= */
   const filteredDrivers = useMemo(() => 
     drivers.filter(d => d.name?.toLowerCase().includes(searchQuery.toLowerCase())),
     [drivers, searchQuery]
@@ -110,72 +124,75 @@ export default function LiveTracking() {
   }, [selectedDriverId, drivers]);
 
   return (
-    <div className="h-screen flex bg-slate-50 overflow-hidden">
+    <div className="h-screen flex bg-slate-50 overflow-hidden font-sans">
       
-      {/* ================= SIDEBAR (MANAGEMENT) ================= */}
-      <div className="w-80 h-full bg-white border-r border-slate-200 flex flex-col z-[1001] shadow-xl">
-        {/* Sidebar Header */}
-        <div className="p-5 border-b border-slate-100">
+      {/* ================= SIDEBAR ================= */}
+      <div className="w-85 h-full bg-white border-r border-slate-200 flex flex-col z-[1001] shadow-2xl">
+        <div className="p-6 border-b border-slate-100 bg-white">
           <button 
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs uppercase tracking-widest mb-4 transition-colors"
+            className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-[0.2em] mb-4 transition-colors group"
           >
-            <MdChevronLeft size={20} /> Back to Dashboard
+            <MdChevronLeft className="group-hover:-translate-x-1 transition-transform" size={18} /> Back
           </button>
-          <h1 className="text-xl font-black text-slate-900 leading-tight">Fleet <span className="text-blue-600">Radar</span></h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Fleet <span className="text-blue-600">Map</span></h1>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time Telemetry</p>
         </div>
 
-        {/* Search Input */}
-        <div className="p-4 bg-slate-50/50 border-b border-slate-100">
-          <div className="relative">
-            <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        {/* Improved Search */}
+        <div className="p-4">
+          <div className="relative group">
+            <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} />
             <input 
               type="text"
-              placeholder="Search personnel..."
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              placeholder="Filter by driver name..."
+              className="w-full bg-slate-50 border border-slate-100 rounded-[1rem] py-3.5 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        {/* Driver List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Enhanced Driver List */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-2">
           {loading ? (
-            <div className="p-10 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">Loading Satellite...</div>
+            <div className="flex flex-col items-center justify-center p-20 gap-3">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Linking...</span>
+            </div>
           ) : filteredDrivers.length === 0 ? (
-            <div className="p-10 text-center text-slate-400 text-sm">No drivers found</div>
+            <div className="p-10 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No active units</div>
           ) : (
             filteredDrivers.map((driver) => (
               <button
                 key={driver.id}
                 onClick={() => setSelectedDriverId(driver.id)}
-                className={`w-full text-left p-4 border-b border-slate-50 transition-all flex items-center gap-4 ${
-                  selectedDriverId === driver.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'hover:bg-slate-50'
+                className={`w-full text-left p-4 mb-2 rounded-[1.25rem] transition-all flex items-center gap-4 ${
+                  selectedDriverId === driver.id 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+                  : 'hover:bg-slate-50 text-slate-600'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
-                  selectedDriverId === driver.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${
+                  selectedDriverId === driver.id ? 'bg-white/20' : 'bg-blue-50 text-blue-600'
                 }`}>
-                  {driver.name?.charAt(0)}
+                  <MdDirectionsCar size={22} />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <p className="font-bold text-slate-900 truncate">{driver.name}</p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
+                  <p className={`font-black truncate ${selectedDriverId === driver.id ? 'text-white' : 'text-slate-900'}`}>
+                    {driver.name}
                   </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedDriverId === driver.id ? 'bg-blue-200' : 'bg-green-500'} animate-pulse`}></span>
+                    <p className={`text-[9px] font-black uppercase tracking-tighter ${selectedDriverId === driver.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                      Transmitting Live
+                    </p>
+                  </div>
                 </div>
-                <MdMyLocation className={selectedDriverId === driver.id ? 'text-blue-600' : 'text-slate-300'} />
+                <MdMyLocation className={selectedDriverId === driver.id ? 'text-white/60' : 'text-slate-200'} size={18} />
               </button>
             ))
           )}
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
-             Active Units: {drivers.length}
-           </p>
         </div>
       </div>
 
@@ -204,25 +221,25 @@ export default function LiveTracking() {
               }}
             >
               <Popup>
-                <div className="p-2 min-w-[160px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                      <MdPerson size={18} />
+                <div className="p-3 min-w-[200px]">
+                  <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                      <MdDirectionsCar size={20} />
                     </div>
                     <div>
-                      <p className="font-black text-slate-900 text-sm leading-tight">{driver.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 truncate">{driver.email}</p>
+                      <p className="font-black text-slate-900 text-sm leading-none mb-1">{driver.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400">{driver.email}</p>
                     </div>
                   </div>
                   
-                  <div className="space-y-1.5 border-t border-slate-100 pt-2">
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span className="text-slate-400 flex items-center gap-1"><MdAccessTime /> LAST SEEN</span>
-                      <span className="text-slate-700">Just Now</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-50 p-2 rounded-lg">
+                        <p className="text-[8px] font-black text-slate-400 uppercase">Status</p>
+                        <p className="text-[10px] font-bold text-green-600">ACTIVE</p>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span className="text-slate-400 flex items-center gap-1"><MdMyLocation /> STATUS</span>
-                      <span className="text-green-600">MOVING</span>
+                    <div className="bg-slate-50 p-2 rounded-lg">
+                        <p className="text-[8px] font-black text-slate-400 uppercase">Speed</p>
+                        <p className="text-[10px] font-bold text-slate-900">34 KM/H</p>
                     </div>
                   </div>
                 </div>
@@ -231,29 +248,22 @@ export default function LiveTracking() {
           ))}
         </MapContainer>
 
-        {/* Legend/Overlay Widgets */}
-        <div className="absolute bottom-6 right-6 z-[1000] space-y-3 pointer-events-none">
-           <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg border border-white/50 pointer-events-auto">
-              <div className="flex items-center gap-3">
-                 <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                    <span className="text-[10px] font-black text-slate-600 uppercase">Driver</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-[10px] font-black text-slate-600 uppercase">Live</span>
-                 </div>
-              </div>
-           </div>
+        {/* Floating Controls Overlay */}
+        <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-3">
+            <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl border border-white flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Satellite Link Secured</span>
+            </div>
         </div>
       </div>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
-        .leaflet-popup-content-wrapper { border-radius: 1.25rem !important; padding: 0 !important; overflow: hidden; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .leaflet-popup-content-wrapper { border-radius: 1.5rem !important; padding: 0 !important; overflow: hidden; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15) !important; }
         .leaflet-popup-content { margin: 0 !important; }
+        .leaflet-popup-tip { display: none; }
       `}</style>
     </div>
   );
