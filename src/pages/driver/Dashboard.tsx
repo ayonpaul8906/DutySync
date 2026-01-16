@@ -25,9 +25,10 @@ import {
   MdPerson,
   MdLocalGasStation,
   MdSpeed,
+  MdHistory,
 } from "react-icons/md";
 
-/* ================= TYPES ================= */
+/* ================= TYPES & HELPERS (Logic Preserved) ================= */
 interface Task {
   id: string;
   tourLocation?: string;
@@ -39,7 +40,6 @@ interface Task {
   createdAt?: any;
 } 
 
-/* ================= HELPERS ================= */
 function isToday(task: Task) {
   const today = new Date().toDateString();
   if (task.createdAt?.toDate) return task.createdAt.toDate().toDateString() === today;
@@ -64,7 +64,7 @@ export default function DriverDashboard() {
     amount: "",
   });
 
-  /* ================= FIRESTORE (Logic preserved) ================= */
+  /* ================= FIRESTORE LOGIC ================= */
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -89,15 +89,13 @@ export default function DriverDashboard() {
     return () => { unsubUser(); unsubTasks(); };
   }, []);
 
-  /* ================= ACTIONS (Logic preserved) ================= */
+  /* ================= ACTIONS ================= */
   async function handleStartTrip() {
     if (!startingKm || isNaN(Number(startingKm)) || Number(startingKm) < 0) {
       alert("Please enter a valid opening kilometer");
       return;
     }
-
     if (!selectedTask) return;
-
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -107,33 +105,23 @@ export default function DriverDashboard() {
         startedAt: serverTimestamp(),
         openingKm: Number(startingKm),
       });
-      await updateDoc(doc(db, "drivers", uid), {
-        activeStatus: "in-progress",
-        active: false,
-      });
+      await updateDoc(doc(db, "drivers", uid), { activeStatus: "in-progress", active: false });
       setShowStartModal(false);
       setStartingKm("");
       setSelectedTask(null);
-      alert("Journey started");
     } catch (error) {
       alert("Failed to start journey");
     }
-  }
-
-  async function startJourney(task: Task) {
-    setSelectedTask(task);
-    setShowStartModal(true);
-  }
-
-  async function handleLogout() {
-    try { await signOut(auth); navigate("/login"); } catch (error) { alert("Failed to logout"); }
   }
 
   async function completeJourney() {
     if (!selectedTask) return;
     const close = Number(completion.closingKm);
     const open = (selectedTask as any).openingKm;
-    if (isNaN(close) || isNaN(open) || close <= open) { alert("Invalid closing KM (must be greater than opening KM)"); return; }
+    if (isNaN(close) || isNaN(open) || close <= open) { 
+        alert("Invalid closing KM (must be greater than opening KM)"); 
+        return; 
+    }
     const kms = close - open;
     const uid = auth.currentUser!.uid;
     try {
@@ -149,187 +137,206 @@ export default function DriverDashboard() {
       setShowModal(false);
       setCompletion({ closingKm: "", fuelQuantity: "", amount: "" });
       setSelectedTask(null);
-      alert("Journey completed");
     } finally { setSubmitting(false); }
   }
+
+  const handleLogout = async () => { await signOut(auth); navigate("/login"); };
 
   const todayTasks = tasks.filter((t) => isToday(t) && t.status !== "completed");
   const pastTasks = tasks.filter((t) => !isToday(t) || t.status === "completed");
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-10">
-      {/* HEADER SECTION */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-4xl mx-auto px-5 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-200">
-               {auth.currentUser?.displayName?.charAt(0) || "D"}
-             </div>
-             <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">On-Duty Driver</p>
-                <h1 className="text-lg font-black text-slate-900 leading-none">
-                  {auth.currentUser?.displayName || "My Profile"}
-                </h1>
-             </div>
+    <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
+      {/* HEADER: Admin Style */}
+      <div className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-200">
+               <MdPerson size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-0.5">Active Operator</p>
+              <h1 className="text-xl font-black text-slate-900 leading-tight">
+                {auth.currentUser?.displayName || "Driver Profile"}
+              </h1>
+            </div>
           </div>
-          <button onClick={handleLogout} className="p-2.5 bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-xl transition-all active:scale-95">
-            <MdLogout size={22} />
+          <button onClick={handleLogout} className="w-11 h-11 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-slate-100 flex items-center justify-center active:scale-95">
+            <MdLogout size={20} />
           </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-5 mt-6">
-        {/* STATS GRID */}
-        <div className="grid grid-cols-3 gap-3 mb-8">
-          <Stat icon={<MdMap className="text-blue-600"/>} label="Total KM" value={stats.totalKms.toLocaleString()} color="blue" />
-          <Stat icon={<MdCheckCircle className="text-emerald-600"/>} label="Finished" value={stats.completed} color="emerald" />
-          <Stat icon={<MdAccessTime className="text-amber-600"/>} label="Pending" value={stats.pending} color="amber" />
+      <div className="max-w-5xl mx-auto px-6 mt-8">
+        {/* STATS: High Contrast Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          <DashboardCard icon={<MdMap/>} label="Total Kilometers" value={stats.totalKms.toLocaleString()} color="indigo" />
+          <DashboardCard icon={<MdCheckCircle/>} label="Duties Finished" value={stats.completed} color="emerald" />
+          <DashboardCard icon={<MdAccessTime/>} label="Upcoming Tasks" value={stats.pending} color="amber" />
         </div>
 
-        {/* TASK SECTION */}
-        <div className="space-y-8">
-          {/* CURRENT TASKS */}
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-               <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
-               <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Assigned Today</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* LEFT: Active Tasks (Today) */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                <h2 className="text-lg font-black text-slate-800">Assigned Roster</h2>
+              </div>
+              <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full uppercase tracking-tighter">Today</span>
             </div>
 
             {loading ? (
               <div className="py-20 flex justify-center"><div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" /></div>
             ) : todayTasks.length === 0 ? (
-              <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2rem] p-8 text-center">
-                <p className="text-sm font-bold text-slate-400">No active tasks for today.</p>
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center">
+                <p className="text-slate-400 font-bold">No active duties found for today.</p>
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="space-y-4">
                 {todayTasks.map((task) => (
-                  <div key={task.id} className="bg-white rounded-[2rem] overflow-hidden shadow-xl shadow-slate-200/50 border border-slate-100">
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                             <MdPerson size={22} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] font-black uppercase text-slate-400 mb-0.5">Passenger Name</p>
-                              <h3 className="font-black text-slate-900">{task.passenger?.name || "Standard Guest"}</h3>
-                           </div>
+                  <div key={task.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden group">
+                    <div className="p-8">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                            <MdPerson size={26} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</p>
+                            <h3 className="text-xl font-black text-slate-900">{task.passenger?.name || "Corporate Guest"}</h3>
+                          </div>
                         </div>
-                        <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${task.status === 'in-progress' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-blue-100 text-blue-700'}`}>
-                           {task.status}
+                        <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight ${task.status === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {task.status}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl">
-                         <MdLocationOn className="text-blue-600" size={20} />
-                         <p className="text-sm font-bold text-slate-600 leading-tight">
-                            {task.tourLocation ?? (task.pickup && task.drop ? `${task.pickup} → ${task.drop}` : (task.pickup || task.drop || "Location not set"))}
-                         </p>
+                      <div className="flex items-center gap-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm">
+                           <MdLocationOn size={22} />
+                        </div>
+                        <p className="font-bold text-slate-600 text-sm leading-relaxed">
+                          {task.tourLocation ?? (task.pickup && task.drop ? `${task.pickup} → ${task.drop}` : (task.pickup || task.drop || "General Transit"))}
+                        </p>
                       </div>
                     </div>
 
                     {task.status === "assigned" ? (
-                      <button onClick={() => startJourney(task)} className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3">
-                        <MdPlayCircle size={20}/> Start Trip Now
+                      <button onClick={() => { setSelectedTask(task); setShowStartModal(true); }} className="w-full py-6 bg-slate-900 hover:bg-black text-white font-black text-xs uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3">
+                        <MdPlayCircle size={20}/> Initialize Journey
                       </button>
                     ) : (
-                      <button onClick={() => { setSelectedTask(task); setShowModal(true); }} className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3">
-                        <MdFlag size={20}/> Complete Duty
+                      <button onClick={() => { setSelectedTask(task); setShowModal(true); }} className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3">
+                        <MdFlag size={20}/> Terminate Duty
                       </button>
                     )}
                   </div>
                 ))}
               </div>
             )}
-          </section>
+          </div>
 
-          {/* HISTORY SECTION */}
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Duty Log</h2>
-            <div className="space-y-3">
-              {pastTasks.map((task) => (
-                <div key={task.id} className="bg-white rounded-2xl p-5 border border-slate-100 flex items-center justify-between group hover:border-emerald-200 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300">
-                       <MdCheckCircle size={20} className="group-hover:text-emerald-500 transition-colors" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm leading-none mb-1">{task.passenger?.name || "Completed Task"}</p>
-                      <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{task.tourLocation || "Trip Record"}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg uppercase">Success</span>
-                </div>
-              ))}
+          {/* RIGHT: History Log */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <MdHistory className="text-slate-400" size={20} />
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">Activity Log</h2>
             </div>
-          </section>
+            
+            <div className="bg-white rounded-[2rem] border border-slate-100 p-6 space-y-4 shadow-sm">
+              {pastTasks.length === 0 ? (
+                <p className="text-center text-xs text-slate-300 py-4 font-bold">No history available</p>
+              ) : (
+                pastTasks.map((task) => (
+                  <div key={task.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                         <MdCheckCircle size={16} />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-bold text-slate-800 truncate">{task.passenger?.name || "Completed"}</p>
+                        <p className="text-[10px] text-slate-400 font-bold truncate tracking-tight">{task.tourLocation || "Trip Completed"}</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-black text-slate-300 uppercase shrink-0 ml-2">Done</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* MODAL - COMPLETION (Bottom Sheet Design) */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end justify-center z-[100] p-4">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up">
-            <div className="flex justify-between items-start mb-6">
+      {/* MODAL SYSTEM (Glass and Smooth Animation) */}
+      {[
+        { show: showStartModal, set: setShowStartModal, title: "Start Journey", sub: "Verify odometer reading", icon: <MdSpeed/>, btnColor: 'bg-blue-600', btnText: 'Initialize' },
+        { show: showModal, set: setShowModal, title: "Duty Report", sub: "Complete trip finalization", icon: <MdFlag/>, btnColor: 'bg-slate-900', btnText: 'Finalize Report' }
+      ].map((m, i) => m.show && (
+        <div key={i} className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-end justify-center z-[100] p-4">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl animate-slide-up border border-white/20">
+            <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="font-black text-2xl text-slate-900 tracking-tight">Complete Duty</h3>
-                <p className="text-sm font-bold text-slate-400">Fill closing KM & fuel logs</p>
+                <h3 className="font-black text-3xl text-slate-900 tracking-tighter">{m.title}</h3>
+                <p className="text-sm font-bold text-slate-400 mt-1">{m.sub}</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><MdClose size={24}/></button>
+              <button onClick={() => m.set(false)} className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                <MdClose size={24}/>
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <LogInput icon={<MdSpeed/>} label="Closing KM" value={completion.closingKm} onChange={(v)=>setCompletion({...completion, closingKm: v})} />
-              <LogInput icon={<MdLocalGasStation/>} label="Fuel (Ltrs)" value={completion.fuelQuantity} onChange={(v)=>setCompletion({...completion, fuelQuantity: v})} />
-              <LogInput icon={<MdPerson/>} label="Amount" value={completion.amount} onChange={(v)=>setCompletion({...completion, amount: v})} />
+            <div className="grid gap-4 mb-8">
+              {m.title === "Start Journey" ? (
+                <LogInput icon={<MdSpeed/>} label="Current Opening KM" value={startingKm} onChange={(v:string)=>setStartingKm(v)} />
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  <LogInput icon={<MdSpeed/>} label="Final Closing KM" value={completion.closingKm} onChange={(v:string)=>setCompletion({...completion, closingKm: v})} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <LogInput icon={<MdLocalGasStation/>} label="Fuel (L)" value={completion.fuelQuantity} onChange={(v:string)=>setCompletion({...completion, fuelQuantity: v})} />
+                    <LogInput icon={<MdPerson/>} label="Cost" value={completion.amount} onChange={(v:string)=>setCompletion({...completion, amount: v})} />
+                  </div>
+                </div>
+              )}
             </div>
 
-            <button onClick={completeJourney} disabled={submitting} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] disabled:opacity-50 shadow-xl shadow-slate-200">
-              {submitting ? "Processing..." : "Submit Records"}
+            <button 
+                onClick={m.title === "Start Journey" ? handleStartTrip : completeJourney} 
+                disabled={submitting}
+                className={`w-full ${m.btnColor} text-white py-6 rounded-2xl font-black text-xs uppercase tracking-[0.4em] shadow-xl transition-transform active:scale-95 disabled:opacity-50`}
+            >
+              {submitting ? "Processing..." : m.btnText}
             </button>
           </div>
         </div>
-      )}
-
-      {/* MODAL - START TRIP (Opening KM) */}
-      {showStartModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end justify-center z-[100] p-4">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="font-black text-2xl text-slate-900 tracking-tight">Start Journey</h3>
-                <p className="text-sm font-bold text-slate-400">Enter opening odometer reading</p>
-              </div>
-              <button onClick={() => setShowStartModal(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><MdClose size={24}/></button>
-            </div>
-
-            <div className="mb-6">
-              <LogInput icon={<MdSpeed/>} label="Opening KM" value={startingKm} onChange={(v)=>setStartingKm(v)} />
-            </div>
-
-            <button onClick={handleStartTrip} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-200">
-              Start Trip Now
-            </button>
-          </div>
-        </div>
-      )}
+      ))}
 
       <style>{`
-        @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
       `}</style>
     </div>
   );
 }
 
-function Stat({ icon, label, value, color }: { icon: ReactNode; label: string; value: string | number; color: string }) {
-  const colors:any = { blue: 'bg-blue-50 text-blue-700', emerald: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700' };
+function DashboardCard({ icon, label, value, color }: { icon: ReactNode; label: string; value: string | number; color: 'indigo' | 'emerald' | 'amber' }) {
+  const themes = {
+    indigo: 'bg-indigo-600 shadow-indigo-200',
+    emerald: 'bg-emerald-600 shadow-emerald-200',
+    amber: 'bg-amber-500 shadow-amber-200'
+  };
+
   return (
-    <div className={`rounded-3xl p-4 text-center border border-white shadow-sm ${colors[color]}`}>
-      <div className="mx-auto mb-2 text-2xl flex justify-center">{icon}</div>
-      <p className="text-xl font-black leading-none mb-1">{value}</p>
-      <p className="text-[9px] font-black uppercase tracking-widest opacity-60">{label}</p>
+    <div className={`rounded-[2rem] p-6 text-white shadow-xl ${themes[color]} relative overflow-hidden group`}>
+      <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
+        {icon && <div className="text-8xl">{icon}</div>}
+      </div>
+      <div className="relative z-10">
+        <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-4">
+          <span className="text-xl">{icon}</span>
+        </div>
+        <p className="text-2xl font-black mb-1">{value}</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{label}</p>
+      </div>
     </div>
   );
 }
@@ -337,13 +344,13 @@ function Stat({ icon, label, value, color }: { icon: ReactNode; label: string; v
 function LogInput({ icon, label, value, onChange }: any) {
   return (
     <div className="relative">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>
+      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300">{icon}</div>
       <input
         type="number"
         placeholder={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-4 text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl pl-12 pr-6 py-5 text-sm font-black text-slate-700 placeholder:text-slate-300 focus:bg-white focus:border-blue-600/20 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all"
       />
     </div>
   );
