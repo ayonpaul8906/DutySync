@@ -76,7 +76,7 @@ export default function App() {
           }
         />
 
-        <Route
+        {/* <Route
           path="/manage-drivers"
           element={
             user && role === "admin" ? (
@@ -85,7 +85,8 @@ export default function App() {
               <Navigate to="/" />
             )
           }
-        />
+        /> */}
+        <Route path="/manage-drivers/:statusFilter" element={<ManageDrivers />} />
 
         <Route
           path="/live-tracking"
