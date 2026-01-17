@@ -89,28 +89,28 @@ export default function AdminDashboard() {
             value={stats.total}
             icon={<MdCheckCircleOutline />}
             color="indigo"
-            onClick={() => navigate("/manage-drivers/all")}
+            onClick={() => navigate("/duty-records/all")}
           />
           <StatCard
             title="Completed"
             value={stats.completed}
             icon={<MdCheckCircleOutline />}
             color="green"
-            onClick={() => navigate("/manage-drivers/completed")}
+            onClick={() => navigate("/duty-records/completed")}
           />
           <StatCard
             title="In Progress"
             value={stats.inProgress}
             icon={<MdOutlineMap />}
             color="amber"
-            onClick={() => navigate("/manage-drivers/in-progress")}
+            onClick={() => navigate("/duty-records/in-progress")}
           />
           <StatCard
             title="Pending"
             value={stats.pending}
             icon={<MdOutlineErrorOutline />}
             color="slate"
-            onClick={() => navigate("/manage-drivers/assigned")}
+            onClick={() => navigate("/duty-records/assigned")}
           />
         </div>
 
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => navigate("/manage-drivers/all")}
+            onClick={() => navigate("/manage-drivers")}
             className="group flex flex-col items-start p-6 rounded-3xl bg-white border border-slate-200 text-slate-800 shadow-sm hover:bg-slate-50 hover:border-blue-200 transition-all duration-300"
           >
             <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 group-hover:bg-blue-50 transition-colors">

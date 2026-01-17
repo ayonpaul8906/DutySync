@@ -12,6 +12,7 @@ import ManageDrivers from "./pages/admin/ManageDrivers";
 import LiveTracking from "./pages/admin/LiveTracking";
 
 import DriverDashboard from "./pages/driver/Dashboard";
+import DutyRecords from "./pages/admin/DutyRecords";
 
 /* ================= APP ================= */
 
@@ -86,7 +87,8 @@ export default function App() {
             )
           }
         /> */}
-        <Route path="/manage-drivers/:statusFilter" element={<ManageDrivers />} />
+        <Route path="/duty-records/:status" element={<DutyRecords />} />
+        <Route path="/manage-drivers/:status?" element={<ManageDrivers />} />
 
         <Route
           path="/live-tracking"
