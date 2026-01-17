@@ -26,10 +26,11 @@ export default function ManageDrivers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Fetch Drivers
+    // 1. Fetch Drivers from 'users' collection where role is 'driver'
     const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
-    // 2. Fetch Tasks to determine who is "On-Duty" (In-Progress)
-    const qTasks = collection(db, "tasks");
+    
+    // 2. Reference tasks to determine real-time status
+    const tasksRef = collection(db, "tasks");
 
     const unsubDrivers = onSnapshot(qDrivers, (driverSnap) => {
       const driverList = driverSnap.docs.map((doc) => ({
@@ -37,14 +38,19 @@ export default function ManageDrivers() {
         ...(doc.data() as Omit<Driver, "id">),
       }));
 
-      const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
+      // Listen to tasks to see who is currently 'in-progress'
+      const unsubTasks = onSnapshot(tasksRef, (taskSnap) => {
         const taskList = taskSnap.docs.map(d => d.data());
 
         const processedDrivers = driverList.map(driver => {
-          // A driver is "on-duty" if they have an 'in-progress' task right now
-          const hasActiveTask = taskList.some(t => t.driverId === driver.id && t.status === 'in-progress');
+          // Check if driver has any task currently in-progress
+          const hasActiveTask = taskList.some(t => 
+            t.driverId === driver.id && t.status === 'in-progress'
+          );
+          
           return {
             ...driver,
+            // If they have an active task, they are on-duty. Otherwise, 'active' (available)
             status: hasActiveTask ? "on-duty" : "active"
           };
         });
@@ -83,14 +89,14 @@ export default function ManageDrivers() {
                 Fleet <span className="text-blue-600">Personnel</span>
               </h1>
               <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mt-1">
-                Driver Directory
+                Real-time Driver Directory
               </p>
             </div>
           </div>
 
           <div className="hidden md:flex flex-col items-end">
             <span className="text-2xl font-black text-slate-900 leading-none">{drivers.length}</span>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Registered</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Drivers Online</span>
           </div>
         </div>
 
@@ -111,13 +117,13 @@ export default function ManageDrivers() {
         {loading ? (
           <div className="flex flex-col justify-center items-center h-64 space-y-4">
             <div className="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full" />
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing Personnel</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing Fleet Data...</p>
           </div>
         ) : filteredDrivers.length === 0 ? (
           <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100 shadow-sm">
             <MdPeople className="text-slate-200 text-6xl mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-900">No personnel found</h3>
-            <p className="text-slate-500 text-sm mt-1">Try searching for a different name.</p>
+            <p className="text-slate-500 text-sm mt-1">No driver matches your current search.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
@@ -194,12 +200,12 @@ function DriverCard({ driver, onView }: { driver: Driver; onView: () => void }) 
                 <MdLocationOn size={18} className="text-slate-400" />
                 <div>
                     <p className="text-xs font-black text-slate-900">{driver.totalKms || 0} KM</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase">Mileage</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Life Mileage</p>
                 </div>
             </div>
         </div>
         <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-            View History →
+            View Driver History →
         </span>
       </div>
     </div>
