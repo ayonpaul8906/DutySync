@@ -121,7 +121,7 @@ export default function DutyRecords() {
                   <h3 className="text-xl font-black text-slate-800 leading-tight">{task.passenger?.name}</h3>
                   <div className="flex items-center gap-4 mt-2">
                     <div className="flex items-center gap-1 text-[11px] font-black text-slate-400 uppercase tracking-tight">
-                      <MdGroups className="text-blue-500" size={16}/> <h3></h3>{task.passenger.heads} 
+                      <MdGroups className="text-blue-500" size={16}/> <h3>{task.passenger.heads}</h3>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] font-black text-slate-400 uppercase tracking-tight">
                       <MdEventNote className="text-blue-500" size={16}/> {task.tourTime}
