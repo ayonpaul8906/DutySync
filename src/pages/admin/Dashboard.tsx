@@ -134,7 +134,7 @@ export default function AdminDashboard() {
             <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 backdrop-blur-md">
               <MdLocationOn className="text-2xl text-blue-400" />
             </div>
-            <span className="text-lg font-bold">Live Fleet</span>
+            <span className="text-lg font-bold">Live Tracking</span>
             <span className="text-slate-400 text-xs font-medium">Real-time GPS tracking</span>
           </button>
 
