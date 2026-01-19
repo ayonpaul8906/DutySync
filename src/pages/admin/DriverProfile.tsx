@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { collection, query, where, onSnapshot, orderBy, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { 
-  MdArrowBack, MdHistory, MdLocationOn, MdPerson, 
+  MdArrowBack, MdHistory, MdLocationOn, 
   MdCircle, MdAccessTime, MdGroups, MdOutlineEmail
 } from "react-icons/md";
 
@@ -22,7 +22,7 @@ export default function DriverProfile() {
   const navigate = useNavigate();
   const [driver, setDriver] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+//   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!driverId) return;

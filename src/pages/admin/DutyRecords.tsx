@@ -18,6 +18,7 @@ interface TaskRecord {
   passenger: {
     name: string;
     phone: string;
+    heads: Int32Array;
   };
   createdAt: any;
   driverName?: string;
