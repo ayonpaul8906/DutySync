@@ -22,7 +22,6 @@ export default function DriverProfile() {
   const navigate = useNavigate();
   const [driver, setDriver] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!driverId) return;
@@ -39,7 +38,6 @@ export default function DriverProfile() {
 
     const unsubTasks = onSnapshot(q, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Task[]);
-      setLoading(false);
     });
 
     return () => { unsubDriver(); unsubTasks(); };
