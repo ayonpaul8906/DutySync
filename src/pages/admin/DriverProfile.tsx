@@ -22,7 +22,7 @@ export default function DriverProfile() {
   const navigate = useNavigate();
   const [driver, setDriver] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-//   const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!driverId) return;
