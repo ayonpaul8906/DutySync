@@ -66,7 +66,7 @@ export default function AdminDashboard() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
               </span>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                System Live • Fleet Command
+                System Live • Admin Portal
               </p>
             </div>
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">

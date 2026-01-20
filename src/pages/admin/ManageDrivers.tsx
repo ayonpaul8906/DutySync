@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { collection, onSnapshot, query, where, doc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
   MdArrowBack,
@@ -9,12 +10,19 @@ import {
   MdLocationOn,
   MdFiberManualRecord,
   MdPeople,
+  MdPersonAdd,
+  MdClose,
+  MdEmail,
+  MdPhone,
+  MdVpnKey,
+  MdOutlineBadge
 } from "react-icons/md";
 
 interface Driver {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   totalKms?: number;
   status?: "active" | "on-duty" | "offline";
 }
@@ -25,11 +33,18 @@ export default function ManageDrivers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Add Driver States
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [newDriver, setNewDriver] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+  });
+
   useEffect(() => {
-    // 1. Fetch Drivers from 'users' collection where role is 'driver'
     const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
-    
-    // 2. Reference tasks to determine real-time status
     const tasksRef = collection(db, "tasks");
 
     const unsubDrivers = onSnapshot(qDrivers, (driverSnap) => {
@@ -38,32 +53,63 @@ export default function ManageDrivers() {
         ...(doc.data() as Omit<Driver, "id">),
       }));
 
-      // Listen to tasks to see who is currently 'in-progress'
       const unsubTasks = onSnapshot(tasksRef, (taskSnap) => {
         const taskList = taskSnap.docs.map(d => d.data());
-
         const processedDrivers = driverList.map(driver => {
-          // Check if driver has any task currently in-progress
           const hasActiveTask = taskList.some(t => 
             t.driverId === driver.id && t.status === 'in-progress'
           );
-          
           return {
             ...driver,
-            // If they have an active task, they are on-duty. Otherwise, 'active' (available)
             status: hasActiveTask ? "on-duty" : "active"
           };
         });
-
         setDrivers(processedDrivers as Driver[]);
         setLoading(false);
       });
-
       return () => unsubTasks();
     });
-
     return () => unsubDrivers();
   }, []);
+
+  const handleAddDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      // 1. Create Auth User
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        newDriver.email, 
+        newDriver.password
+      );
+      const uid = userCredential.user.uid;
+
+      // 2. Create Firestore Profile
+      await setDoc(doc(db, "users", uid), {
+        name: newDriver.name,
+        email: newDriver.email,
+        phone: newDriver.phone,
+        role: "driver",
+        totalKms: 0,
+        createdAt: new Date(),
+      });
+
+      // 3. Create Operational Doc
+      await setDoc(doc(db, "drivers", uid), {
+        activeStatus: "active",
+        totalKilometers: 0,
+        active: true
+      });
+
+      setShowAddModal(false);
+      setNewDriver({ name: "", email: "", phone: "", password: "" });
+      alert("Driver registered successfully!");
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const filteredDrivers = drivers.filter((d) =>
     d.name?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -94,10 +140,13 @@ export default function ManageDrivers() {
             </div>
           </div>
 
-          <div className="hidden md:flex flex-col items-end">
-            <span className="text-2xl font-black text-slate-900 leading-none">{drivers.length}</span>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Drivers Online</span>
-          </div>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-200 active:scale-95"
+          >
+            <MdPersonAdd size={20} />
+            <span className="hidden sm:inline">Add Driver</span>
+          </button>
         </div>
 
         {/* ================= SEARCH BAR ================= */}
@@ -137,30 +186,81 @@ export default function ManageDrivers() {
           </div>
         )}
       </div>
+
+      {/* ================= MODAL: ADD DRIVER ================= */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Onboard Driver</h2>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Create new login access</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="p-2 bg-slate-50 rounded-full text-slate-400 hover:text-red-500 transition-colors">
+                <MdClose size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDriver} className="space-y-4">
+              <ModalInput 
+                icon={<MdOutlineBadge />} label="Full Name" 
+                value={newDriver.name} onChange={(v) => setNewDriver({...newDriver, name: v})} 
+              />
+              <ModalInput 
+                icon={<MdEmail />} label="Email Address" type="email"
+                value={newDriver.email} onChange={(v) => setNewDriver({...newDriver, email: v})} 
+              />
+              <ModalInput 
+                icon={<MdPhone />} label="Phone Number" 
+                value={newDriver.phone} onChange={(v) => setNewDriver({...newDriver, phone: v})} 
+              />
+              <ModalInput 
+                icon={<MdVpnKey />} label="Login Password" type="password"
+                value={newDriver.password} onChange={(v) => setNewDriver({...newDriver, password: v})} 
+              />
+
+              <button 
+                type="submit"
+                disabled={submitting}
+                className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 mt-4"
+              >
+                {submitting ? "Processing..." : "Register Driver"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ================= COMPONENT: DRIVER CARD ================= */
+/* ================= HELPER COMPONENTS ================= */
+
+function ModalInput({ icon, label, value, onChange, type = "text" }: any) {
+  return (
+    <div className="relative group">
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors">
+        {icon}
+      </div>
+      <input
+        required
+        type={type}
+        placeholder={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-600/20 transition-all placeholder:text-slate-300"
+      />
+    </div>
+  );
+}
 
 function DriverCard({ driver, onView }: { driver: Driver; onView: () => void }) {
   const status = driver.status || "active";
-
   const statusConfig: any = {
-    "on-duty": {
-      container: "bg-amber-50 text-amber-700 border-amber-100",
-      dot: "bg-amber-500"
-    },
-    "active": {
-      container: "bg-green-50 text-green-700 border-green-100",
-      dot: "bg-green-500"
-    },
-    "offline": {
-      container: "bg-slate-50 text-slate-700 border-slate-200",
-      dot: "bg-slate-400"
-    }
+    "on-duty": { container: "bg-amber-50 text-amber-700 border-amber-100", dot: "bg-amber-500" },
+    "active": { container: "bg-green-50 text-green-700 border-green-100", dot: "bg-green-500" },
+    "offline": { container: "bg-slate-50 text-slate-700 border-slate-200", dot: "bg-slate-400" }
   };
-
   const currentStatus = statusConfig[status] || statusConfig["active"];
 
   return (
@@ -171,18 +271,14 @@ function DriverCard({ driver, onView }: { driver: Driver; onView: () => void }) 
       <div className="flex items-center gap-5">
         <div className="relative">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform duration-300">
-              <span className="text-xl font-black text-blue-600">
-                {driver.name?.charAt(0) || "?"}
-              </span>
+              <span className="text-xl font-black text-blue-600">{driver.name?.charAt(0) || "?"}</span>
             </div>
             <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${currentStatus.dot}`}></div>
         </div>
 
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <p className="font-black text-slate-900 text-lg group-hover:text-blue-600 transition-colors">
-              {driver.name}
-            </p>
+            <p className="font-black text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{driver.name}</p>
             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border flex items-center gap-1.5 ${currentStatus.container}`}>
               <MdFiberManualRecord size={10} />
               {status}
@@ -190,7 +286,6 @@ function DriverCard({ driver, onView }: { driver: Driver; onView: () => void }) 
           </div>
           <p className="text-sm font-medium text-slate-500 mt-0.5">{driver.email}</p>
         </div>
-
         <MdChevronRight size={24} className="text-slate-300 group-hover:text-blue-600" />
       </div>
 
