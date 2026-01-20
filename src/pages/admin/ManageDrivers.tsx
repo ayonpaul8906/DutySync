@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, doc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
@@ -35,7 +35,9 @@ export default function ManageDrivers() {
 
   // Add Driver States
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAdminVerify, setShowAdminVerify] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [adminVerify, setAdminVerify] = useState({ email: "", password: "" });
   const [newDriver, setNewDriver] = useState({
     name: "",
     email: "",
@@ -75,9 +77,14 @@ export default function ManageDrivers() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Show admin verification modal instead of proceeding directly
+    setShowAdminVerify(true);
+  };
+
+  const handleConfirmAddDriver = async () => {
     setSubmitting(true);
     try {
-      // 1. Create Auth User
+      // 1. Create Auth User for Driver
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         newDriver.email, 
@@ -104,11 +111,16 @@ export default function ManageDrivers() {
         active: true
       });
 
+      // 4. Re-authenticate as admin using provided credentials
+      await signInWithEmailAndPassword(auth, adminVerify.email, adminVerify.password);
+
       setShowAddModal(false);
+      setShowAdminVerify(false);
       setNewDriver({ name: "", email: "", phone: "", licenseNumber: "", password: "" });
+      setAdminVerify({ email: "", password: "" });
       alert("Driver registered successfully!");
     } catch (error: any) {
-      alert(error.message);
+      alert("Error: " + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -234,6 +246,45 @@ export default function ManageDrivers() {
                 {submitting ? "Processing..." : "Register Driver"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: ADMIN VERIFICATION ================= */}
+      {showAdminVerify && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[101] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
+            <div className="mb-8">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Verify Admin Access</h2>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Enter your credentials to continue</p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <ModalInput 
+                icon={<MdEmail />} label="Admin Email" type="email"
+                value={adminVerify.email} onChange={(v) => setAdminVerify({...adminVerify, email: v})} 
+              />
+              <ModalInput 
+                icon={<MdVpnKey />} label="Admin Password" type="password"
+                value={adminVerify.password} onChange={(v) => setAdminVerify({...adminVerify, password: v})} 
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => { setShowAdminVerify(false); setAdminVerify({ email: "", password: "" }); }}
+                className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-black text-xs uppercase tracking-[0.15em] transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmAddDriver}
+                disabled={submitting}
+                className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.15em] shadow-xl shadow-blue-100 disabled:opacity-50 transition-all"
+              >
+                {submitting ? "Adding..." : "Confirm"}
+              </button>
+            </div>
           </div>
         </div>
       )}
