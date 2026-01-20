@@ -40,6 +40,7 @@ export default function ManageDrivers() {
     name: "",
     email: "",
     phone: "",
+    licenseNumber: "",
     password: "",
   });
 
@@ -96,13 +97,15 @@ export default function ManageDrivers() {
 
       // 3. Create Operational Doc
       await setDoc(doc(db, "drivers", uid), {
+        name: newDriver.name,
+        licenseNumber: newDriver.licenseNumber,
         activeStatus: "active",
         totalKilometers: 0,
         active: true
       });
 
       setShowAddModal(false);
-      setNewDriver({ name: "", email: "", phone: "", password: "" });
+      setNewDriver({ name: "", email: "", phone: "", licenseNumber: "", password: "" });
       alert("Driver registered successfully!");
     } catch (error: any) {
       alert(error.message);
@@ -213,6 +216,10 @@ export default function ManageDrivers() {
               <ModalInput 
                 icon={<MdPhone />} label="Phone Number" 
                 value={newDriver.phone} onChange={(v) => setNewDriver({...newDriver, phone: v})} 
+              />
+              <ModalInput 
+                icon={<MdOutlineBadge />} label="License Number" 
+                value={newDriver.licenseNumber} onChange={(v) => setNewDriver({...newDriver, licenseNumber: v})} 
               />
               <ModalInput 
                 icon={<MdVpnKey />} label="Login Password" type="password"
