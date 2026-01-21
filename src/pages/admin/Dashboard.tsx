@@ -5,7 +5,6 @@ import { collection, onSnapshot, query } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
-  MdPowerSettingsNew,
   MdLogout,
   MdCheckCircleOutline,
   MdOutlineMap,
