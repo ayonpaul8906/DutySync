@@ -14,6 +14,7 @@ import LiveTracking from "./pages/admin/LiveTracking";
 import DriverDashboard from "./pages/driver/Dashboard";
 import DutyRecords from "./pages/admin/DutyRecords";
 import DriverProfile from "./pages/admin/DriverProfile";
+import DaywiseReport from "./pages/admin/DaywiseReport";
 
 /* ================= APP ================= */
 
@@ -78,16 +79,7 @@ export default function App() {
           }
         />
 
-        {/* <Route
-          path="/manage-drivers"
-          element={
-            user && role === "admin" ? (
-              <ManageDrivers />
-            ) : (
-              <Navigate to="/" />
-            )
-          }
-        /> */}
+        <Route path="/daywise-report" element={<DaywiseReport />} />
         <Route path="/duty-records/:status" element={<DutyRecords />} />
         <Route path="/manage-drivers/:status?" element={<ManageDrivers />} />
         <Route path="/admin/driver-profile/:driverId" element={<DriverProfile />} />

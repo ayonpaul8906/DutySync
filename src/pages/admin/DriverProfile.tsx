@@ -22,33 +22,58 @@ export default function DriverProfile() {
   const navigate = useNavigate();
   const [driver, setDriver] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!driverId) return;
 
+    // 1. Listen to Driver Details
     const unsubDriver = onSnapshot(doc(db, "users", driverId), (snap) => {
-      setDriver(snap.data());
+      if (snap.exists()) {
+        setDriver(snap.data());
+      }
     });
 
+    // 2. Listen to Driver Tasks
+    // Removed strict orderBy momentarily to test if index is the issue, 
+    // instead we will sort manually in JavaScript to ensure "In Progress" shows immediately
     const q = query(
       collection(db, "tasks"), 
-      where("driverId", "==", driverId), 
-      orderBy("createdAt", "desc")
+      where("driverId", "==", driverId)
     );
 
     const unsubTasks = onSnapshot(q, (snap) => {
-      setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Task[]);
+      const fetchedTasks = snap.docs.map(d => ({ 
+        id: d.id, 
+        ...d.data() 
+      })) as Task[];
+
+      // Manual sort: Newest first (handles missing createdAt gracefully on refresh)
+      const sortedTasks = fetchedTasks.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setTasks(sortedTasks);
+      setLoading(false);
+    }, (error) => {
+      console.error("Task subscription error:", error);
+      setLoading(false);
     });
 
-    return () => { unsubDriver(); unsubTasks(); };
+    return () => { 
+      unsubDriver(); 
+      unsubTasks(); 
+    };
   }, [driverId]);
 
-  const activeTask = tasks.find(t => t.status === "in-progress" || t.status === "assigned");
+  // Logic to find active task: prioritizing in-progress over assigned
+  const activeTask = tasks.find(t => t.status === "in-progress") || tasks.find(t => t.status === "assigned");
   const pastTasks = tasks.filter(t => t.status === "completed");
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] pb-10">
-      {/* Slim Header Navigation */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="hover:bg-slate-100 p-2 rounded-lg transition-colors">
@@ -57,20 +82,21 @@ export default function DriverProfile() {
           <h2 className="font-bold text-slate-800">Driver Profile</h2>
         </div>
         <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-slate-400">Live Status</span>
+            <span className={`h-2 w-2 rounded-full ${activeTask ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></span>
+            <span className="text-[10px] font-black uppercase text-slate-400">
+              {activeTask ? 'On Duty' : 'Available'}
+            </span>
         </div>
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        
         {/* Profile Info Bar */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 flex flex-wrap items-center gap-6 shadow-sm">
           <div className="h-16 w-16 rounded-xl bg-slate-900 text-white flex items-center justify-center text-2xl font-black">
-            {driver?.name?.charAt(0)}
+            {driver?.name?.charAt(0) || "?"}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <h1 className="text-xl font-black text-slate-900 leading-tight">{driver?.name}</h1>
+            <h1 className="text-xl font-black text-slate-900 leading-tight">{driver?.name || "Loading..."}</h1>
             <div className="flex items-center gap-4 mt-1 text-slate-500">
               <span className="text-xs flex items-center gap-1 font-bold"><MdOutlineEmail/> {driver?.email}</span>
               <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">ID: {driverId?.slice(-6).toUpperCase()}</span>
@@ -78,21 +104,22 @@ export default function DriverProfile() {
           </div>
           <div className="flex gap-4 border-l border-slate-100 pl-6">
             <div className="text-center">
-              <p className="text-[10px] font-black text-slate-400 uppercase">Total Duties</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase">Life Duties</p>
               <p className="text-lg font-black text-slate-800">{tasks.length}</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Sidebar Area: Current Duty (More compact) */}
+          {/* Sidebar Area: Current Duty */}
           <div className="lg:col-span-1 space-y-4">
             <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
               <MdCircle className="text-blue-500" size={10}/> Ongoing Duty
             </h3>
             
-            {activeTask ? (
+            {loading ? (
+              <div className="h-32 bg-white rounded-2xl animate-pulse border border-slate-200"></div>
+            ) : activeTask ? (
               <div className="bg-white border-2 border-blue-600 rounded-2xl p-5 shadow-lg shadow-blue-50">
                 <div className="flex justify-between items-start mb-4">
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${activeTask.status === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -107,7 +134,7 @@ export default function DriverProfile() {
                     <span className="leading-tight">{activeTask.tourLocation}</span>
                   </div>
                   <div className="flex items-center gap-4 pt-3 border-t border-slate-50">
-                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdGroups size={14}/> {activeTask.paxNo} Pax</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdGroups size={14}/> {activeTask.paxNo || 0}</div>
                     <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdAccessTime size={14}/> {activeTask.tourTime}</div>
                   </div>
                 </div>
@@ -119,7 +146,7 @@ export default function DriverProfile() {
             )}
           </div>
 
-          {/* Main Area: History Table style */}
+          {/* Main Area: History Log */}
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
               <MdHistory className="text-slate-500" size={14}/> Duty History Log
@@ -158,7 +185,7 @@ export default function DriverProfile() {
                     ) : (
                       <tr>
                         <td colSpan={3} className="px-5 py-10 text-center text-slate-400 text-xs font-bold italic">
-                          No historical logs found for this driver.
+                          {loading ? "Fetching history..." : "No historical logs found for this driver."}
                         </td>
                       </tr>
                     )}
@@ -167,7 +194,6 @@ export default function DriverProfile() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

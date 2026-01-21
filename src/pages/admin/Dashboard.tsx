@@ -6,12 +6,14 @@ import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
   MdPowerSettingsNew,
+  MdLogout,
   MdCheckCircleOutline,
   MdOutlineMap,
   MdOutlineErrorOutline,
   MdOutlineAddCircle,
   MdGroups,
   MdLocationOn,
+  MdBarChart,
 } from "react-icons/md";
 
 interface DashboardStats {
@@ -33,13 +35,20 @@ export default function AdminDashboard() {
   useEffect(() => {
     const q = query(collection(db, "tasks"));
     const unsub = onSnapshot(q, (snapshot) => {
+      const today = new Date().toDateString();
       const docs = snapshot.docs.map((d) => d.data());
+      
+      // Filter for Daywise Stats (Today Only)
+      const todayDocs = docs.filter((d: any) => {
+        const taskDate = d.createdAt?.toDate ? d.createdAt.toDate().toDateString() : new Date(d.date).toDateString();
+        return taskDate === today;
+      });
+
       setStats({
-        total: docs.length,
-        completed: docs.filter((d) => d.status === "completed").length,
-        inProgress: docs.filter((d) => d.status === "in-progress").length,
-        // Match the "assigned" status used in your AssignDuty.tsx
-        pending: docs.filter((d) => d.status === "assigned").length,
+        total: todayDocs.length,
+        completed: todayDocs.filter((d) => d.status === "completed").length,
+        inProgress: todayDocs.filter((d) => d.status === "in-progress").length,
+        pending: todayDocs.filter((d) => d.status === "assigned").length,
       });
     });
 
@@ -53,7 +62,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
-      {/* Decorative Top Bar */}
       <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600"></div>
 
       <div className="max-w-6xl mx-auto px-6 py-10">
@@ -80,15 +88,15 @@ export default function AdminDashboard() {
           >
             <span className="text-sm font-bold">Logout</span>
             <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-red-100 transition-colors">
-              <MdPowerSettingsNew className="text-lg" />
+              <MdLogout className="text-lg" />
             </div>
           </button>
         </div>
 
-        {/* ================= STATS GRID (REDIRECTS TO DUTY RECORDS) ================= */}
+        {/* ================= STATS GRID (TODAY'S STATS) ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
           <StatCard
-            title="Total Duties"
+            title="Today's Total"
             value={stats.total}
             icon={<MdCheckCircleOutline />}
             color="indigo"
@@ -123,33 +131,27 @@ export default function AdminDashboard() {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <button
             onClick={() => navigate("/live-tracking")}
             className="group relative overflow-hidden flex flex-col items-start p-6 rounded-3xl bg-slate-900 text-white shadow-2xl shadow-slate-200 hover:scale-[1.02] transition-all duration-300"
           >
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-              <MdLocationOn size={120} />
-            </div>
             <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 backdrop-blur-md">
               <MdLocationOn className="text-2xl text-blue-400" />
             </div>
             <span className="text-lg font-bold">Live Tracking</span>
-            <span className="text-slate-400 text-xs font-medium">Real-time GPS tracking</span>
+            <span className="text-slate-400 text-xs font-medium">GPS tracking</span>
           </button>
 
           <button
             onClick={() => navigate("/assign-duty")}
             className="group relative overflow-hidden flex flex-col items-start p-6 rounded-3xl bg-blue-600 text-white shadow-2xl shadow-blue-100 hover:scale-[1.02] transition-all duration-300"
           >
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-              <MdOutlineAddCircle size={120} />
-            </div>
             <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 backdrop-blur-md">
               <MdOutlineAddCircle className="text-2xl text-white" />
             </div>
             <span className="text-lg font-bold">Dispatch Duty</span>
-            <span className="text-blue-100 text-xs font-medium">Assign new tasks</span>
+            <span className="text-blue-100 text-xs font-medium">New tasks</span>
           </button>
 
           <button
@@ -162,25 +164,25 @@ export default function AdminDashboard() {
             <span className="text-lg font-bold text-slate-900">Manage Drivers</span>
             <span className="text-slate-500 text-xs font-medium">Personnel records</span>
           </button>
+
+          {/* NEW: Daywise Report Button */}
+          <button
+            onClick={() => navigate("/daywise-report")}
+            className="group flex flex-col items-start p-6 rounded-3xl bg-white border border-slate-200 text-slate-800 shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-300"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
+              <MdBarChart className="text-2xl text-indigo-600" />
+            </div>
+            <span className="text-lg font-bold text-slate-900">Daywise Report</span>
+            <span className="text-slate-500 text-xs font-medium">Analytics & Exports</span>
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-  onClick,
-}: {
-  title: string;
-  value: number;
-  icon: ReactNode;
-  color: "indigo" | "green" | "amber" | "slate";
-  onClick: () => void;
-}) {
+function StatCard({ title, value, icon, color, onClick }: any) {
   const colorMap: any = {
     indigo: { icon: "text-indigo-600 bg-indigo-100", border: "border-indigo-100" },
     green: { icon: "text-green-600 bg-green-100", border: "border-green-100" },
@@ -189,21 +191,12 @@ function StatCard({
   };
 
   return (
-    <div
-      onClick={onClick}
-      className={`relative cursor-pointer bg-white p-6 rounded-[2rem] border ${colorMap[color].border} shadow-sm overflow-hidden group hover:shadow-md transition-all active:scale-95`}
-    >
-      <div
-        className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-300 ${colorMap[color].icon}`}
-      >
+    <div onClick={onClick} className={`relative cursor-pointer bg-white p-6 rounded-[2rem] border ${colorMap[color].border} shadow-sm overflow-hidden group hover:shadow-md transition-all active:scale-95`}>
+      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-300 ${colorMap[color].icon}`}>
         <span className="text-2xl">{icon}</span>
       </div>
-      <div className="relative z-10">
-        <p className="text-3xl font-black text-slate-900 tabular-nums leading-none">{value}</p>
-        <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.15em]">
-          {title}
-        </p>
-      </div>
+      <p className="text-3xl font-black text-slate-900 leading-none">{value}</p>
+      <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.15em]">{title}</p>
     </div>
   );
 }

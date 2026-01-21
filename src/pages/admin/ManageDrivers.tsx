@@ -42,7 +42,7 @@ export default function ManageDrivers() {
     name: "",
     email: "",
     phone: "",
-    licenseNumber: "",
+    vehicleNumber: "",
     password: "",
   });
 
@@ -105,7 +105,7 @@ export default function ManageDrivers() {
       // 3. Create Operational Doc
       await setDoc(doc(db, "drivers", uid), {
         name: newDriver.name,
-        licenseNumber: newDriver.licenseNumber,
+        vehicleNumber: newDriver.vehicleNumber,
         activeStatus: "active",
         totalKilometers: 0,
         active: true
@@ -116,7 +116,7 @@ export default function ManageDrivers() {
 
       setShowAddModal(false);
       setShowAdminVerify(false);
-      setNewDriver({ name: "", email: "", phone: "", licenseNumber: "", password: "" });
+      setNewDriver({ name: "", email: "", phone: "", vehicleNumber: "", password: "" });
       setAdminVerify({ email: "", password: "" });
       alert("Driver registered successfully!");
     } catch (error: any) {
@@ -231,7 +231,7 @@ export default function ManageDrivers() {
               />
               <ModalInput 
                 icon={<MdOutlineBadge />} label="License Number" 
-                value={newDriver.licenseNumber} onChange={(v) => setNewDriver({...newDriver, licenseNumber: v})} 
+                value={newDriver.vehicleNumber} onChange={(v) => setNewDriver({...newDriver, vehicleNumber: v})} 
               />
               <ModalInput 
                 icon={<MdVpnKey />} label="Login Password" type="password"
