@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs, addDoc, serverTimestamp, query, where } from "firebase/firestore";
+import { 
+  collection, 
+  getDocs, 
+  addDoc, 
+  serverTimestamp, 
+  query, 
+  where, 
+  doc, 
+  updateDoc 
+} from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
   MdArrowBack,
@@ -49,7 +58,7 @@ export default function AssignDuty() {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  /* ================= FUNCTIONS (KEEPING UNCHANGED) ================= */
+  /* ================= FETCH AVAILABLE DRIVERS ================= */
   useEffect(() => {
     async function fetchDrivers() {
       try {
@@ -66,6 +75,7 @@ export default function AssignDuty() {
           }))
         );
       } catch (e) {
+        console.error("Error fetching drivers:", e);
         alert("Failed to fetch drivers");
       } finally {
         setFetchingDrivers(false);
@@ -89,6 +99,7 @@ export default function AssignDuty() {
     setModalOpen(false);
   }
 
+  /* ================= ASSIGN DUTY & UPDATE STATUS ================= */
   async function handleAssign() {
     const errors: string[] = [];
     if (!dutyData.driverId) errors.push('Driver');
@@ -121,6 +132,8 @@ export default function AssignDuty() {
 
     try {
       setLoading(true);
+
+      // 1. Create the Task Payload
       const payload: any = {
         driverId: dutyData.driverId,
         driverName: dutyData.driverName,
@@ -135,10 +148,19 @@ export default function AssignDuty() {
       if (dutyData.time) payload.tourTime = dutyData.time;
       if (dutyData.date && dutyData.time) payload.tourDateTime = new Date(`${dutyData.date}T${dutyData.time}`);
 
+      // 2. Save the Task
       await addDoc(collection(db, "tasks"), payload);
-      alert("Duty assigned successfully");
+
+      // 3. Update the Driver's status to 'assigned'
+      const driverRef = doc(db, "drivers", dutyData.driverId);
+      await updateDoc(driverRef, {
+        activeStatus: "assigned"
+      });
+
+      alert("Duty assigned successfully and driver status updated.");
       navigate(-1);
     } catch (e) {
+      console.error("Error in assignment:", e);
       alert("Failed to assign duty");
     } finally {
       setLoading(false);
@@ -147,12 +169,10 @@ export default function AssignDuty() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
-      {/* Decorative Top Bar */}
       <div className="h-2 w-full bg-blue-600"></div>
 
       <div className="max-w-3xl mx-auto px-5 py-8">
-
-        {/* ================= HEADER ================= */}
+        {/* HEADER */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
@@ -170,9 +190,8 @@ export default function AssignDuty() {
           </div>
         </div>
 
-        {/* ================= FORM CARD ================= */}
+        {/* FORM CARD */}
         <div className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
-          
           <div className="space-y-6">
             {/* DRIVER SECTION */}
             <div>
@@ -236,7 +255,6 @@ export default function AssignDuty() {
               </div>
             </button>
 
-            {/* TOUR LOCATION */}
             <Input 
                 label="Destination / Tour Location" 
                 value={dutyData.tourLocation} 
@@ -245,7 +263,6 @@ export default function AssignDuty() {
                 onChange={(v) => setDutyData({ ...dutyData, tourLocation: v })} 
             />
 
-            {/* DATE & TIME ROW */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <Input 
                     label="Tour Date" 
@@ -264,7 +281,6 @@ export default function AssignDuty() {
                 />
             </div>
 
-            {/* ADDITIONAL NOTES */}
             <Input
               label="Fleet Instructions / Notes"
               value={dutyData.notes}
@@ -293,10 +309,10 @@ export default function AssignDuty() {
         </button>
       </div>
 
-      {/* ================= PASSENGER MODAL ================= */}
+      {/* PASSENGER MODAL */}
       {modalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200 border border-slate-100">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto border border-slate-100">
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-2xl font-black text-slate-900">Passenger Sheet</h2>
@@ -372,7 +388,6 @@ export default function AssignDuty() {
   );
 }
 
-/* ================= REUSABLE STYLED INPUT ================= */
 function Input({
   label,
   value,
@@ -405,7 +420,7 @@ function Input({
       </label>
       <div className="relative">
         {icon && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600 transition-colors group-focus-within:text-blue-600">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600">
                 {icon}
             </div>
         )}
