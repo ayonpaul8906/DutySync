@@ -27,6 +27,7 @@ interface Driver {
   status?: "active" | "on-duty" | "offline";
 }
 
+
 export default function ManageDrivers() {
   const navigate = useNavigate();
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -294,7 +295,20 @@ export default function ManageDrivers() {
 
 /* ================= HELPER COMPONENTS ================= */
 
-function ModalInput({ icon, label, value, onChange, type = "text" }: any) {
+function ModalInput({
+  icon,
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+
   return (
     <div className="relative group">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors">
