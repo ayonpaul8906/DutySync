@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
-import { MdArrowBack, MdFileDownload, MdEvent, MdFilterList } from "react-icons/md";
+import { MdArrowBack, MdFileDownload, MdEvent } from "react-icons/md";
 import * as XLSX from "xlsx";
 
 export default function DaywiseReport() {

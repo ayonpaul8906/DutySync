@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import { signOut } from "firebase/auth";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";

@@ -18,7 +18,6 @@ import {
   MdLogout,
   MdPlayCircle,
   MdFlag,
-  MdClose,
   MdCheckCircle,
   MdAccessTime,
   MdLocationOn,
@@ -26,8 +25,6 @@ import {
   MdLocalGasStation,
   MdSpeed,
   MdHistory,
-  MdGpsFixed,
-  MdGpsOff,
 } from "react-icons/md";
 
 /* ================= TYPES & HELPERS ================= */
