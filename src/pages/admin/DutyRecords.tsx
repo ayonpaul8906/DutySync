@@ -14,7 +14,6 @@ interface TaskRecord {
   status: string;
   tourLocation: string;
   tourTime: string;
-  paxNo: string;
   passenger: {
     name: string;
     phone: string;

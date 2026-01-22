@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, query, where, onSnapshot, orderBy, doc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { 
   MdArrowBack, MdHistory, MdLocationOn, 
@@ -12,8 +12,7 @@ interface Task {
   status: string;
   tourLocation: string;
   tourTime: string;
-  paxNo: string;
-  passenger: { name: string; phone: string };
+  passenger: { name: string; phone: string ; heads: number };
   createdAt: any;
 }
 
@@ -134,7 +133,7 @@ export default function DriverProfile() {
                     <span className="leading-tight">{activeTask.tourLocation}</span>
                   </div>
                   <div className="flex items-center gap-4 pt-3 border-t border-slate-50">
-                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdGroups size={14}/> {activeTask.paxNo || 0}</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdGroups size={14}/> {activeTask.passenger.heads || 0}</div>
                     <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><MdAccessTime size={14}/> {activeTask.tourTime}</div>
                   </div>
                 </div>
