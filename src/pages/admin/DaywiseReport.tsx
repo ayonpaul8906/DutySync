@@ -5,9 +5,32 @@ import { useNavigate } from "react-router-dom";
 import { MdArrowBack, MdFileDownload, MdEvent } from "react-icons/md";
 import * as XLSX from "xlsx";
 
+interface Task {
+  id: string;
+  driverId?: string;
+  driverName?: string;
+  dateOnly: string;
+  createdAt?: any;
+
+  passenger?: {
+    name?: string;
+    heads?: number;
+  };
+
+  tourLocation?: string;
+  tourTime?: string;
+  status?: string;
+
+  openingKm?: number;
+  closingKm?: number;
+  fuelQuantity?: number;
+  fuelAmount?: number;
+}
+
+
 export default function DaywiseReport() {
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -19,7 +42,7 @@ export default function DaywiseReport() {
       const drivers = driverSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
       const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
-        const allTasks = taskSnap.docs.map(doc => {
+        const allTasks: Task[] = taskSnap.docs.map(doc => {
           const data = doc.data();
           const taskDate = data.createdAt?.toDate ? data.createdAt.toDate().toISOString().split('T')[0] : data.date;
           return { id: doc.id, ...data, dateOnly: taskDate };
