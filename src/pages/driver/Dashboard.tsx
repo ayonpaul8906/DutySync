@@ -55,7 +55,7 @@ export default function DriverDashboard() {
   const [stats, setStats] = useState({ totalKms: 0, completed: 0, pending: 0, totalFuel: 0 });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [_submitting, setSubmitting] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [startingKm, setStartingKm] = useState("");
   const [gpsStatus, setGpsStatus] = useState<"tracking" | "error" | "searching">("searching");
@@ -116,7 +116,7 @@ export default function DriverDashboard() {
           },
           { 
             enableHighAccuracy: true, 
-            distanceFilter: 10, 
+            timeout: 10000,
             maximumAge: 0 
           }
         );
@@ -234,7 +234,7 @@ export default function DriverDashboard() {
   };
 
   const todayTasks = tasks.filter((t) => isToday(t) && t.status !== "completed");
-  const pastTasks = tasks.filter((t) => !isToday(t) || t.status === "completed");
+//   const pastTasks = tasks.filter((t) => !isToday(t) || t.status === "completed");
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
