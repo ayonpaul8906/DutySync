@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, orderBy, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useNavigate, useParams } from "react-router-dom";
 import { 
   MdArrowBack, MdSearch, MdLocationOn, MdPerson, 
-  MdGroups, MdFilterList, MdEventNote 
+  MdGroups, MdFilterList, MdEventNote, MdDeleteOutline 
 } from "react-icons/md";
 
 // Interface matching your operational structure
@@ -49,10 +49,8 @@ export default function DutyRecords() {
           ...doc.data()
         })) as TaskRecord[];
 
-        // Filter: Status matching AND Date must be Today
         const filtered = allTasks
           .filter(t => {
-            // Determine task date string
             const taskDate = t.createdAt?.toDate 
               ? t.createdAt.toDate().toDateString() 
               : new Date(t.date || "").toDateString();
@@ -75,6 +73,29 @@ export default function DutyRecords() {
     return () => unsubDrivers();
   }, [status]);
 
+  // Updated Delete Logic with Driver Status Reset
+  const handleDelete = async (task: TaskRecord) => {
+    if (window.confirm(`Are you sure you want to delete ${task.passenger?.name}'s duty? Driver ${task.driverName} will be set to active.`)) {
+      try {
+        // 1. Delete the task document
+        await deleteDoc(doc(db, "tasks", task.id));
+
+        // 2. Update the driver status back to "active" in the drivers collection
+        if (task.driverId) {
+          const driverRef = doc(db, "drivers", task.driverId);
+          await updateDoc(driverRef, {
+            activeStatus: "active" // This resets the driver's availability
+          });
+        }
+
+        console.log("Task deleted and driver status reset.");
+      } catch (error) {
+        console.error("Error during deletion process:", error);
+        alert("Failed to complete deletion. Please check permissions.");
+      }
+    }
+  };
+
   const filteredTasks = tasks.filter(t => 
     t.passenger?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.driverName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -86,7 +107,7 @@ export default function DutyRecords() {
       <div className="h-1.5 w-full bg-blue-600"></div>
       <div className="max-w-5xl mx-auto px-6 py-10">
         
-        {/* ================= HEADER ================= */}
+        {/* HEADER SECTION */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button 
@@ -110,7 +131,7 @@ export default function DutyRecords() {
           </div>
         </div>
 
-        {/* ================= SEARCH ================= */}
+        {/* SEARCH BAR */}
         <div className="relative mb-8">
           <MdSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
           <input 
@@ -121,16 +142,16 @@ export default function DutyRecords() {
           />
         </div>
 
-        {/* ================= LIST ================= */}
+        {/* RECORDS LIST */}
         {loading ? (
           <div className="flex flex-col justify-center items-center py-20 space-y-4">
             <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Records...</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Syncing with Fleet...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredTasks.map(task => (
-              <div key={task.id} className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-lg transition-all duration-300">
+              <div key={task.id} className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-lg transition-all duration-300 relative group">
                 <div className="flex justify-between items-start mb-4">
                   <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
                     task.status === 'completed' 
@@ -141,7 +162,17 @@ export default function DutyRecords() {
                   }`}>
                     {task.status}
                   </div>
-                  <p className="text-[10px] font-bold text-slate-300">REF: {task.id.slice(-6).toUpperCase()}</p>
+                  
+                  {/* DELETE BUTTON: Only for "assigned" status */}
+                  {task.status === "assigned" && (
+                    <button 
+                      onClick={() => handleDelete(task)}
+                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-90"
+                      title="Delete and Release Driver"
+                    >
+                      <MdDeleteOutline size={22} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="mb-4">
@@ -156,7 +187,7 @@ export default function DutyRecords() {
                   </div>
                 </div>
                 
-                <div className="bg-slate-50 p-4 rounded-2xl mb-6">
+                <div className="bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100/50">
                   <div className="flex items-start gap-3 text-sm text-slate-600 font-bold">
                     <MdLocationOn className="text-red-500 mt-1 flex-shrink-0" size={18} /> 
                     <span>{task.tourLocation}</span>
@@ -165,26 +196,31 @@ export default function DutyRecords() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-200">
                       <MdPerson size={20} />
                     </div>
                     <div>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Driver Assigned</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Fleet Driver</p>
                       <p className="text-sm font-black text-slate-700">{task.driverName}</p>
                     </div>
                   </div>
+                  <p className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-1 rounded-md">
+                    ID: {task.id.slice(-6).toUpperCase()}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         )}
 
+        {/* EMPTY STATE */}
         {!loading && filteredTasks.length === 0 && (
-          <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MdFilterList className="text-slate-300" size={32} />
+          <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-inner">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <MdFilterList className="text-slate-200" size={40} />
             </div>
-            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No duty records found for today.</p>
+            <p className="text-slate-400 font-black uppercase text-sm tracking-widest">Zero entries found</p>
+            <p className="text-slate-300 text-xs font-bold mt-2 tracking-tight">No duties match your current filter for today.</p>
           </div>
         )}
       </div>
