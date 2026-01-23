@@ -116,7 +116,7 @@ export default function DriverDashboard() {
           },
           { 
             enableHighAccuracy: true, 
-            timeout: 10000,
+
             maximumAge: 0 
           }
         );
@@ -175,7 +175,7 @@ export default function DriverDashboard() {
         openingKm: Number(startingKm),
       });
       // Keeping locationstatus as online, but you could add tripStatus: "on-duty" if needed
-      await updateDoc(doc(db, "drivers", uid), { locationstatus: "online" });
+      await updateDoc(doc(db, "drivers", uid), { locationstatus: "online", activeStatus: "in-progress", active : false });
       
       setShowStartModal(false);
       setStartingKm("");
@@ -211,7 +211,9 @@ export default function DriverDashboard() {
 
       await updateDoc(doc(db, "drivers", uid), { 
         locationstatus: "online", 
-        totalKilometers: increment(kms) 
+        totalKilometers: increment(kms) ,
+        activeStatus: "active",
+        active : true
       });
       await updateDoc(doc(db, "users", uid), { totalKms: increment(kms) });
 
