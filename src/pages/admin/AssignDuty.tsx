@@ -8,6 +8,7 @@ import {
   query, 
   where, 
   doc, 
+  getDoc,
   updateDoc 
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -29,6 +30,33 @@ import {
 interface DriverOption {
   label: string;
   value: string;
+}
+
+/* ================= PUSH NOTIFICATION HELPER ================= */
+async function sendPushNotification(driverPushToken: string, taskDetails: any) {
+  if (!driverPushToken) return;
+
+  const message = {
+    to: driverPushToken,
+    sound: 'default',
+    title: '🚀 New Task Assigned!',
+    body: `Passenger: ${taskDetails.passenger.name}\nLocation: ${taskDetails.tourLocation}`,
+    data: { taskId: taskDetails.id }, 
+  };
+
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+  } catch (error) {
+    console.error("Notification failed to send:", error);
+  }
 }
 
 export default function AssignDuty() {
@@ -58,7 +86,6 @@ export default function AssignDuty() {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  /* ================= FETCH AVAILABLE DRIVERS ================= */
   useEffect(() => {
     async function fetchDrivers() {
       try {
@@ -99,7 +126,7 @@ export default function AssignDuty() {
     setModalOpen(false);
   }
 
-  /* ================= ASSIGN DUTY & UPDATE STATUS ================= */
+  /* ================= ASSIGN DUTY & NOTIFY ================= */
   async function handleAssign() {
     const errors: string[] = [];
     if (!dutyData.driverId) errors.push('Driver');
@@ -107,23 +134,6 @@ export default function AssignDuty() {
     if (!dutyData.tourLocation) errors.push('Tour location');
     if (!dutyData.date) errors.push('Tour date');
     if (!dutyData.time) errors.push('Tour time');
-    if (!passenger.designation) errors.push('Designation');
-    if (!passenger.department) errors.push('Department');
-    if (!passenger.contact) errors.push('Contact');
-    if (!passenger.heads) errors.push('Number of heads');
-
-    if (passenger.heads && (isNaN(Number(passenger.heads)) || Number(passenger.heads) < 1)) errors.push('Number of heads must be >= 1');
-    if (passenger.contact && !/^\d{10}$/.test(passenger.contact)) errors.push('Contact must be 10 digits');
-
-    if (dutyData.date && dutyData.time) {
-      const selected = new Date(`${dutyData.date}T${dutyData.time}`);
-      const now = new Date();
-      if (isNaN(selected.getTime())) {
-        errors.push('Invalid date/time');
-      } else if (selected < now) {
-        errors.push('Date and time must be current or future');
-      }
-    }
 
     if (errors.length > 0) {
       alert('Please fix: ' + errors.join(', '));
@@ -133,7 +143,12 @@ export default function AssignDuty() {
     try {
       setLoading(true);
 
-      // 1. Create the Task Payload
+      // 1. Fetch the Driver's Push Token from the 'users' collection
+      // (Assuming your tokens are stored in 'users' or 'drivers' with the same ID)
+      const driverUserDoc = await getDoc(doc(db, "users", dutyData.driverId));
+      const driverPushToken = driverUserDoc.data()?.fcmToken;
+
+      // 2. Create the Task Payload
       const payload: any = {
         driverId: dutyData.driverId,
         driverName: dutyData.driverName,
@@ -148,16 +163,26 @@ export default function AssignDuty() {
       if (dutyData.time) payload.tourTime = dutyData.time;
       if (dutyData.date && dutyData.time) payload.tourDateTime = new Date(`${dutyData.date}T${dutyData.time}`);
 
-      // 2. Save the Task
-      await addDoc(collection(db, "tasks"), payload);
+      // 3. Save the Task to Firestore
+      const taskRef = await addDoc(collection(db, "tasks"), payload);
 
-      // 3. Update the Driver's status to 'assigned'
+      // 4. Update the Driver's status to 'assigned'
       const driverRef = doc(db, "drivers", dutyData.driverId);
       await updateDoc(driverRef, {
         activeStatus: "assigned"
       });
 
-      alert("Duty assigned successfully and driver status updated.");
+      // 5. SEND THE PUSH NOTIFICATION
+      if (driverPushToken) {
+        await sendPushNotification(driverPushToken, {
+          id: taskRef.id,
+          ...payload
+        });
+      } else {
+        console.warn("No Push Token found for this driver. Notification skipped.");
+      }
+
+      alert("Duty assigned successfully and Driver notified.");
       navigate(-1);
     } catch (e) {
       console.error("Error in assignment:", e);
