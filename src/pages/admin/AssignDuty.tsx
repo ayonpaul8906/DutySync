@@ -146,7 +146,11 @@ export default function AssignDuty() {
       // 1. Fetch the Driver's Push Token from the 'users' collection
       // (Assuming your tokens are stored in 'users' or 'drivers' with the same ID)
       const driverUserDoc = await getDoc(doc(db, "users", dutyData.driverId));
-      const driverPushToken = driverUserDoc.data()?.fcmToken;
+      const driverPushToken = driverUserDoc.data()?.pushToken;
+
+      if (!driverPushToken) {
+        console.warn("⚠️ No pushToken found in Firestore for UID:", dutyData.driverId);
+    }
 
       // 2. Create the Task Payload
       const payload: any = {
