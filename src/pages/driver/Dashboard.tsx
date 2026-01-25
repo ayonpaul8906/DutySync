@@ -4,6 +4,7 @@ import { signOut } from "firebase/auth";
 import {
   collection,
   doc,
+  getDoc,
   increment,
   onSnapshot,
   query,
@@ -159,71 +160,134 @@ export default function DriverDashboard() {
   }, []);
 
   /* ================= ACTIONS ================= */
-  async function handleStartTrip() {
-    if (!startingKm || isNaN(Number(startingKm))) {
-      alert("Enter valid starting KM");
+async function handleStartTrip() {
+  const currentStart = Number(startingKm);
+  const uid = auth.currentUser?.uid;
+
+  // 1. Basic Validation
+  if (!startingKm || isNaN(currentStart)) {
+    alert("Enter valid starting KM");
+    return;
+  }
+  if (!selectedTask || !uid) return;
+
+  try {
+    // 2. Fetch Driver data to verify KM logic
+    const driverRef = doc(db, "drivers", uid);
+    const driverSnap = await getDoc(driverRef);
+    
+    // Get the last journey's end KM from the driver's profile
+    const lastTripEnd = driverSnap.exists() 
+      ? driverSnap.data().lastTripEndKm || 0 
+      : 0;
+
+    // 3. 🔥 KM Validation Check (The logic from your APK)
+    if (currentStart < lastTripEnd) {
+      alert(`Validation Failed: You have entered less KM than last journey (${lastTripEnd} KM).`);
       return;
     }
-    if (!selectedTask) return;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
 
-    try {
-      await updateDoc(doc(db, "tasks", selectedTask.id), {
-        status: "in-progress",
-        startedAt: serverTimestamp(),
-        openingKm: Number(startingKm),
-      });
-      // Keeping locationstatus as online, but you could add tripStatus: "on-duty" if needed
-      await updateDoc(doc(db, "drivers", uid), { locationstatus: "online", activeStatus: "in-progress", active : false });
-      
-      setShowStartModal(false);
-      setStartingKm("");
-      setSelectedTask(null);
-    } catch (error) {
-      alert("Error starting trip");
-    }
+    // 4. Update the Task
+    await updateDoc(doc(db, "tasks", selectedTask.id), {
+      status: "in-progress",
+      startedAt: serverTimestamp(),
+      openingKm: currentStart,
+    });
+
+    // 5. Update Driver Status
+    // Note: Using updateDoc here as per your snippet
+    await updateDoc(driverRef, { 
+      locationstatus: "online", 
+      activeStatus: "in-progress", 
+      active: false 
+    });
+    
+    // 6. UI Cleanup
+    setShowStartModal(false);
+    setStartingKm("");
+    setSelectedTask(null);
+    
+    // Optional success message
+    console.log("Trip started successfully");
+
+  } catch (error) {
+    console.error("Error starting trip:", error);
+    alert("Error starting trip: " + error.message);
   }
+}
 
   async function completeJourney() {
-    if (!selectedTask) return;
-    const close = Number(completion.closingKm);
-    const open = selectedTask.openingKm || 0;
-    
-    if (isNaN(close) || close <= open) { 
-        alert(`Closing KM must be greater than ${open}`); 
-        return; 
-    }
+  if (!selectedTask) return;
+  
+  const uid = auth.currentUser?.uid;
+  const close = Number(completion.closingKm);
+  const open = selectedTask.openingKm || 0;
 
-    const kms = close - open;
-    const uid = auth.currentUser!.uid;
-    
-    try {
-      setSubmitting(true);
-      await updateDoc(doc(db, "tasks", selectedTask.id), {
-        status: "completed",
-        closingKm: close,
-        fuelQuantity: Number(completion.fuelQuantity) || 0,
-        fuelAmount: Number(completion.amount) || 0,
-        kilometers: kms,
-        completedAt: serverTimestamp(),
-      });
-
-      await updateDoc(doc(db, "drivers", uid), { 
-        locationstatus: "online", 
-        totalKilometers: increment(kms) ,
-        activeStatus: "active",
-        active : true
-      });
-      await updateDoc(doc(db, "users", uid), { totalKms: increment(kms) });
-
-      setShowModal(false);
-      setCompletion({ closingKm: "", fuelQuantity: "", amount: "" });
-      setSelectedTask(null);
-    } finally { 
-      setSubmitting(false); 
-    }
+  // 1. Basic Numeric Validation
+  if (isNaN(close) || !completion.closingKm) {
+    alert("Input Error: Please enter valid closing KM.");
+    return;
   }
+
+  // 2. 🔥 Validation Check (Matching Mobile logic)
+  if (close <= open) {
+    alert("Validation Failed: You have entered less than initialize km");
+    return;
+  }
+
+  if (!uid) return;
+
+  try {
+    setSubmitting(true);
+    
+    const driverRef = doc(db, "drivers", uid);
+    const taskRef = doc(db, "tasks", selectedTask.id);
+    const userRef = doc(db, "users", uid);
+    const kms = close - open;
+
+    // 3. Update the Task Document
+    await updateDoc(taskRef, {
+      status: "completed",
+      closingKm: close,
+      fuelQuantity: Number(completion.fuelQuantity) || 0,
+      fuelAmount: Number(completion.amount) || 0,
+      kilometers: kms,
+      completedAt: serverTimestamp(),
+    });
+
+    // 4. Update Driver Profile (Crucial: sets lastTripEndKm for the next trip)
+    // Using setDoc with merge: true to match your mobile implementation
+    await setDoc(
+      driverRef,
+      {
+        activeStatus: "active",
+        active: true,
+        lastTripEndKm: close, // 🔥 This enables the StartTrip validation for next time
+        totalKilometers: increment(kms),
+        locationstatus: "online",
+      },
+      { merge: true }
+    );
+
+    // 5. Update User Profile for global stats
+    await updateDoc(userRef, { 
+      totalKms: increment(kms) 
+    });
+
+    // 6. UI Cleanup
+    setShowModal(false);
+    setCompletion({ closingKm: "", fuelQuantity: "", amount: "" });
+    setSelectedTask(null);
+    
+    alert("Success: Journey completed successfully!");
+
+  } catch (e) {
+    console.error("Sync Error:", e);
+    alert("Sync Error: " + e.message);
+  } finally {
+    setSubmitting(false);
+  }
+}
 
   const handleLogout = async () => { 
     const user = auth.currentUser;
