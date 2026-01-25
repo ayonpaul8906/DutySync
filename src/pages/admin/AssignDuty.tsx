@@ -33,31 +33,27 @@ interface DriverOption {
 }
 
 /* ================= PUSH NOTIFICATION HELPER ================= */
-async function sendPushNotification(driverPushToken: string, taskDetails: any) {
-  if (!driverPushToken) return;
+const openWhatsApp = (driverPhone: string, taskDetails: any) => {
+  // 1. Format phone: Ensure it has the country code (e.g., +91 for India)
+  const cleanPhone = driverPhone.replace(/\D/g, ''); // removes non-digits
+  const formattedPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
+  
+  // 2. Format the message (Using %0A for new lines)
+  const message = 
+    `🚀 *NEW DUTY ASSIGNED*%0A%0A` +
+    `*Passenger:* ${taskDetails.passenger}%0A` +
+    `*Destination:* ${taskDetails.location}%0A` +
+    `*Reporting Date:* ${taskDetails.date}%0A` +
+    `*Reporting Time:* ${taskDetails.time}%0A` +
+    `*Instructions:* ${taskDetails.notes || 'N/A'}%0A%0A` +
+    `_Please open the AMPL Driver App to begin your journey._`;
 
-  const message = {
-    to: driverPushToken,
-    sound: 'default',
-    title: '🚀 New Task Assigned!',
-    body: `Passenger: ${taskDetails.passenger.name}\nLocation: ${taskDetails.tourLocation}`,
-    data: { taskId: taskDetails.id }, 
-  };
-
-  try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
-    });
-  } catch (error) {
-    console.error("Notification failed to send:", error);
-  }
-}
+  // 3. Generate the URL
+  const whatsappUrl = `https://wa.me/${formattedPhone}?text=${message}`;
+  
+  // 4. Open in a new tab
+  window.open(whatsappUrl, '_blank');
+};
 
 export default function AssignDuty() {
   const navigate = useNavigate();
@@ -127,7 +123,7 @@ export default function AssignDuty() {
   }
 
   /* ================= ASSIGN DUTY & NOTIFY ================= */
-  async function handleAssign() {
+async function handleAssign() {
     const errors: string[] = [];
     if (!dutyData.driverId) errors.push('Driver');
     if (!passenger.name) errors.push('Passenger name');
@@ -143,14 +139,12 @@ export default function AssignDuty() {
     try {
       setLoading(true);
 
-      // 1. Fetch the Driver's Push Token from the 'users' collection
-      // (Assuming your tokens are stored in 'users' or 'drivers' with the same ID)
+      // 1. Fetch the Driver's Token and Phone Number
       const driverUserDoc = await getDoc(doc(db, "users", dutyData.driverId));
+      const driverDataSnap = await getDoc(doc(db, "drivers", dutyData.driverId));
+      
       const driverPushToken = driverUserDoc.data()?.pushToken;
-
-      if (!driverPushToken) {
-        console.warn("⚠️ No pushToken found in Firestore for UID:", dutyData.driverId);
-    }
+      const driverPhone = driverDataSnap.data()?.contact; 
 
       // 2. Create the Task Payload
       const payload: any = {
@@ -172,21 +166,38 @@ export default function AssignDuty() {
 
       // 4. Update the Driver's status to 'assigned'
       const driverRef = doc(db, "drivers", dutyData.driverId);
-      await updateDoc(driverRef, {
-        activeStatus: "assigned"
-      });
+      await updateDoc(driverRef, { activeStatus: "assigned" });
 
-      // 5. SEND THE PUSH NOTIFICATION
+      // 5. TRIGGER PUSH NOTIFICATION (Cloud Function)
       if (driverPushToken) {
-        await sendPushNotification(driverPushToken, {
-          id: taskRef.id,
-          ...payload
-        });
-      } else {
-        console.warn("No Push Token found for this driver. Notification skipped.");
+        try {
+          const functions = getFunctions();
+          const sendNotification = httpsCallable(functions, 'sendPushNotification');
+          await sendNotification({
+            pushToken: driverPushToken,
+            title: '🚀 New Task Assigned!',
+            body: `Passenger: ${passenger.name}\nDestination: ${dutyData.tourLocation}`,
+            taskId: taskRef.id
+          });
+        } catch (pushErr) {
+          console.error("Push Notification failed:", pushErr);
+        }
       }
 
-      alert("Duty assigned successfully and Driver notified.");
+      // 6. TRIGGER WHATSAPP (Direct Link)
+      if (driverPhone) {
+        openWhatsApp(driverPhone, {
+          passenger: passenger.name,
+          location: dutyData.tourLocation,
+          date: dutyData.date,
+          time: dutyData.time,
+          notes: dutyData.notes
+        });
+      } else {
+        alert("Task saved, but no contact number found for WhatsApp.");
+      }
+
+      alert("Duty assigned successfully! Dispatching notifications...");
       navigate(-1);
     } catch (e) {
       console.error("Error in assignment:", e);

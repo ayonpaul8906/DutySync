@@ -109,7 +109,8 @@ export default function ManageDrivers() {
         vehicleNumber: newDriver.vehicleNumber,
         activeStatus: "active",
         totalKilometers: 0,
-        active: true
+        active: true,
+        contact: newDriver.phone,
       });
 
       // 4. Re-authenticate as admin using provided credentials
