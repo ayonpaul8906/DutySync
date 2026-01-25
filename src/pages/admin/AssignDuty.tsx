@@ -12,6 +12,8 @@ import {
   updateDoc 
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
 import {
   MdArrowBack,
   MdPerson,

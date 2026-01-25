@@ -211,9 +211,14 @@ async function handleStartTrip() {
     console.log("Trip started successfully");
 
   } catch (error) {
+  if (error instanceof Error) {
     console.error("Error starting trip:", error);
     alert("Error starting trip: " + error.message);
+  } else {
+    console.error("Error starting trip:", error);
+    alert("Error starting trip");
   }
+}
 }
 
   async function completeJourney() {
@@ -282,11 +287,14 @@ async function handleStartTrip() {
     alert("Success: Journey completed successfully!");
 
   } catch (e) {
+  if (e instanceof Error) {
     console.error("Sync Error:", e);
     alert("Sync Error: " + e.message);
-  } finally {
-    setSubmitting(false);
+  } else {
+    console.error("Sync Error:", e);
+    alert("Sync Error occurred");
   }
+}
 }
 
   const handleLogout = async () => { 
