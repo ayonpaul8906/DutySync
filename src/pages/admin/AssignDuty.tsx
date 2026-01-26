@@ -35,12 +35,10 @@ interface DriverOption {
 }
 
 /* ================= PUSH NOTIFICATION HELPER ================= */
-const openWhatsApp = (driverPhone: string, taskDetails: any) => {
-  // 1. Format phone: Ensure it has the country code (e.g., +91 for India)
-  const cleanPhone = driverPhone.replace(/\D/g, ''); // removes non-digits
+const getWhatsAppUrl = (driverPhone: string, taskDetails: any) => {
+  const cleanPhone = driverPhone.replace(/\D/g, '');
   const formattedPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
   
-  // 2. Format the message (Using %0A for new lines)
   const message = 
     `🚀 *NEW DUTY ASSIGNED*%0A%0A` +
     `*Passenger:* ${taskDetails.passenger}%0A` +
@@ -50,11 +48,7 @@ const openWhatsApp = (driverPhone: string, taskDetails: any) => {
     `*Instructions:* ${taskDetails.notes || 'N/A'}%0A%0A` +
     `_Please open the AMPL Driver App to begin your journey._`;
 
-  // 3. Generate the URL
-  const whatsappUrl = `https://wa.me/${formattedPhone}?text=${message}`;
-  
-  // 4. Open in a new tab
-  window.open(whatsappUrl, '_blank');
+  return `https://wa.me/${formattedPhone}?text=${message}`;
 };
 
 export default function AssignDuty() {
@@ -126,88 +120,97 @@ export default function AssignDuty() {
 
   /* ================= ASSIGN DUTY & NOTIFY ================= */
 async function handleAssign() {
-    const errors: string[] = [];
-    if (!dutyData.driverId) errors.push('Driver');
-    if (!passenger.name) errors.push('Passenger name');
-    if (!dutyData.tourLocation) errors.push('Tour location');
-    if (!dutyData.date) errors.push('Tour date');
-    if (!dutyData.time) errors.push('Tour time');
+  const errors: string[] = [];
+  if (!dutyData.driverId) errors.push('Driver');
+  if (!passenger.name) errors.push('Passenger name');
+  if (!dutyData.tourLocation) errors.push('Tour location');
+  if (!dutyData.date) errors.push('Tour date');
+  if (!dutyData.time) errors.push('Tour time');
 
-    if (errors.length > 0) {
-      alert('Please fix: ' + errors.join(', '));
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // 1. Fetch the Driver's Token and Phone Number
-      const driverUserDoc = await getDoc(doc(db, "users", dutyData.driverId));
-      const driverDataSnap = await getDoc(doc(db, "drivers", dutyData.driverId));
-      
-      const driverPushToken = driverUserDoc.data()?.pushToken;
-      const driverPhone = driverDataSnap.data()?.contact; 
-
-      // 2. Create the Task Payload
-      const payload: any = {
-        driverId: dutyData.driverId,
-        driverName: dutyData.driverName,
-        tourLocation: dutyData.tourLocation,
-        notes: dutyData.notes,
-        passenger: { ...passenger, heads: Number(passenger.heads) },
-        status: "assigned",
-        kilometers: 0,
-        createdAt: serverTimestamp(),
-      };  
-      if (dutyData.date) payload.tourDate = new Date(dutyData.date);
-      if (dutyData.time) payload.tourTime = dutyData.time;
-      if (dutyData.date && dutyData.time) payload.tourDateTime = new Date(`${dutyData.date}T${dutyData.time}`);
-
-      // 3. Save the Task to Firestore
-      const taskRef = await addDoc(collection(db, "tasks"), payload);
-
-      // 4. Update the Driver's status to 'assigned'
-      const driverRef = doc(db, "drivers", dutyData.driverId);
-      await updateDoc(driverRef, { activeStatus: "assigned" });
-
-      // 5. TRIGGER PUSH NOTIFICATION (Cloud Function)
-      if (driverPushToken) {
-        try {
-          const functions = getFunctions();
-          const sendNotification = httpsCallable(functions, 'sendPushNotification');
-          await sendNotification({
-            pushToken: driverPushToken,
-            title: '🚀 New Task Assigned!',
-            body: `Passenger: ${passenger.name}\nDestination: ${dutyData.tourLocation}`,
-            taskId: taskRef.id
-          });
-        } catch (pushErr) {
-          console.error("Push Notification failed:", pushErr);
-        }
-      }
-
-      // 6. TRIGGER WHATSAPP (Direct Link)
-      if (driverPhone) {
-        openWhatsApp(driverPhone, {
-          passenger: passenger.name,
-          location: dutyData.tourLocation,
-          date: dutyData.date,
-          time: dutyData.time,
-          notes: dutyData.notes
-        });
-      } else {
-        alert("Task saved, but no contact number found for WhatsApp.");
-      }
-
-      alert("Duty assigned successfully! Dispatching notifications...");
-      navigate(-1);
-    } catch (e) {
-      console.error("Error in assignment:", e);
-      alert("Failed to assign duty");
-    } finally {
-      setLoading(false);
-    }
+  if (errors.length > 0) {
+    alert('Please fix: ' + errors.join(', '));
+    return;
   }
+
+  // This tells the browser: "The user intended to open a window."
+  let windowReference = window.open('about:blank', '_blank');
+
+  try {
+    setLoading(true);
+
+    // 1. Fetch Data
+    const driverUserDoc = await getDoc(doc(db, "users", dutyData.driverId));
+    const driverDataSnap = await getDoc(doc(db, "drivers", dutyData.driverId));
+    
+    const driverPushToken = driverUserDoc.data()?.pushToken;
+    const driverPhone = driverDataSnap.data()?.contact; 
+
+    if (!driverPhone && windowReference) {
+      windowReference.close(); // Close if no phone found
+    }
+
+    // 2. Create Payload
+    const payload: any = {
+      driverId: dutyData.driverId,
+      driverName: dutyData.driverName,
+      tourLocation: dutyData.tourLocation,
+      notes: dutyData.notes,
+      passenger: { ...passenger, heads: Number(passenger.heads) },
+      status: "assigned",
+      kilometers: 0,
+      createdAt: serverTimestamp(),
+    };  
+    if (dutyData.date) payload.tourDate = new Date(dutyData.date);
+    if (dutyData.time) payload.tourTime = dutyData.time;
+    if (dutyData.date && dutyData.time) payload.tourDateTime = new Date(`${dutyData.date}T${dutyData.time}`);
+
+    // 3. Save Task
+    const taskRef = await addDoc(collection(db, "tasks"), payload);
+
+    // 4. Update Driver
+    const driverRef = doc(db, "drivers", dutyData.driverId);
+    await updateDoc(driverRef, { activeStatus: "assigned" });
+
+    // 5. Cloud Function Notification
+    if (driverPushToken) {
+      try {
+        const functions = getFunctions();
+        const sendNotification = httpsCallable(functions, 'sendPushNotification');
+        await sendNotification({
+          pushToken: driverPushToken,
+          title: '🚀 New Task Assigned!',
+          body: `Passenger: ${passenger.name}\nDestination: ${dutyData.tourLocation}`,
+          taskId: taskRef.id
+        });
+      } catch (pushErr) {
+        console.error("Push Notification failed:", pushErr);
+      }
+    }
+
+    // 🔥 VERCEL FIX STEP 2: Update the reference window with the real URL
+    if (driverPhone && windowReference) {
+      const waUrl = getWhatsAppUrl(driverPhone, {
+        passenger: passenger.name,
+        location: dutyData.tourLocation,
+        date: dutyData.date,
+        time: dutyData.time,
+        notes: dutyData.notes
+      });
+      windowReference.location.href = waUrl;
+    } else if (!driverPhone) {
+        alert("Task saved, but no contact number found for WhatsApp.");
+    }
+
+    alert("Duty assigned successfully!");
+    navigate(-1);
+  } catch (e) {
+    if (windowReference) windowReference.close();
+    console.error("Error in assignment:", e);
+    alert("Failed to assign duty");
+  } finally {
+    setLoading(false);
+  }
+}
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
