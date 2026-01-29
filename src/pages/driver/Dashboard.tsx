@@ -40,6 +40,7 @@ interface Task {
   createdAt?: any;
   fuelQuantity?: number;
   openingKm?: number;
+  completedAt?: any; 
 }
 
 /* ================= COMPONENT ================= */
