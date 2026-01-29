@@ -34,7 +34,7 @@ useEffect(() => {
   const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
   const qTasks = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
 
-  const unsubDrivers = onSnapshot(qDrivers, (driverSnap) => {
+  const unsubDrivers = onSnapshot(qDrivers, (_driverSnap) => {
 
     const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
       const allTasks = taskSnap.docs.map((d) => ({
