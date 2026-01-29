@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
-import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  getDocs,
+} from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,82 +22,101 @@ import {
 } from "react-icons/md";
 
 interface DashboardStats {
-  total: number;       // drivers that have at least one task
-  completed: number;   // drivers whose latest task is completed
-  inProgress: number;  // drivers whose latest task is in-progress
-  pending: number;     // drivers whose latest task is assigned
+  total: number;      // drivers that have at least one task
+  active: number;     // drivers with activeStatus="active" and active=true
+  inProgress: number; // drivers whose latest task is in-progress
+  pending: number;    // drivers whose latest task is assigned
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
-    completed: 0,
+    active: 0,
     inProgress: 0,
     pending: 0,
   });
 
-useEffect(() => {
-  const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
-  const qTasks = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
+  useEffect(() => {
+    const qDrivers = query(
+      collection(db, "users"),
+      where("role", "==", "driver")
+    );
+    const qTasks = query(
+      collection(db, "tasks"),
+      orderBy("createdAt", "desc")
+    );
 
-  const unsubDrivers = onSnapshot(qDrivers, (_driverSnap) => {
+    const unsubDrivers = onSnapshot(qDrivers, (_driverSnap) => {
+      const unsubTasks = onSnapshot(qTasks, async (taskSnap) => {
+        const allTasks = taskSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as any[];
 
-    const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
-      const allTasks = taskSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as any[];
-
-      // Group tasks by driverId
-      const tasksByDriver: Record<string, any[]> = {};
-      allTasks.forEach((task) => {
-        if (!task.driverId) return;
-        if (!tasksByDriver[task.driverId]) tasksByDriver[task.driverId] = [];
-        tasksByDriver[task.driverId].push(task);
-      });
-
-      // Build "latest task per driver" list (same as DutyRecords `status === "all"`)
-      const latestTasksPerDriver: { driverId: string; status: string }[] = [];
-
-      Object.keys(tasksByDriver).forEach((driverId) => {
-        const driverTasks = tasksByDriver[driverId];
-
-        const sorted = [...driverTasks].sort((a, b) => {
-          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-          return bTime - aTime;
+        // Group tasks by driverId
+        const tasksByDriver: Record<string, any[]> = {};
+        allTasks.forEach((task) => {
+          if (!task.driverId) return;
+          if (!tasksByDriver[task.driverId]) tasksByDriver[task.driverId] = [];
+          tasksByDriver[task.driverId].push(task);
         });
 
-        const latest = sorted[0];
-        if (latest) {
-          latestTasksPerDriver.push({
-            driverId,
-            status: latest.status,
+        // Build "latest task per driver" list
+        const latestTasksPerDriver: { driverId: string; status: string }[] = [];
+
+        Object.keys(tasksByDriver).forEach((driverId) => {
+          const driverTasks = tasksByDriver[driverId];
+
+          const sorted = [...driverTasks].sort((a, b) => {
+            const aTime = a.createdAt?.toDate
+              ? a.createdAt.toDate().getTime()
+              : 0;
+            const bTime = b.createdAt?.toDate
+              ? b.createdAt.toDate().getTime()
+              : 0;
+            return bTime - aTime;
           });
-        }
+
+          const latest = sorted[0];
+          if (latest) {
+            latestTasksPerDriver.push({
+              driverId,
+              status: latest.status,
+            });
+          }
+        });
+
+        const total = latestTasksPerDriver.length;
+        const inProgress = latestTasksPerDriver.filter(
+          (t) => t.status === "in-progress"
+        ).length;
+        const pending = latestTasksPerDriver.filter(
+          (t) => t.status === "assigned"
+        ).length;
+
+        // Query "drivers" collection for active drivers
+        const activeQuery = query(
+          collection(db, "drivers"),
+          where("activeStatus", "==", "active"),
+          where("active", "==", true)
+        );
+        const activeSnap = await getDocs(activeQuery); // count docs [web:78][web:82]
+        const active = activeSnap.size;
+
+        setStats({
+          total,
+          active,
+          inProgress,
+          pending,
+        });
       });
 
-      // Now count by latest status
-      const total = latestTasksPerDriver.length;
-      const completed = latestTasksPerDriver.filter((t) => t.status === "completed").length;
-      const inProgress = latestTasksPerDriver.filter((t) => t.status === "in-progress").length;
-      const pending = latestTasksPerDriver.filter((t) => t.status === "assigned").length;
-
-      setStats({
-        total,
-        completed,
-        inProgress,
-        pending,
-      });
+      return () => unsubTasks();
     });
 
-    return () => unsubTasks();
-  });
-
-  return () => unsubDrivers();
-}, []);
-
+    return () => unsubDrivers();
+  }, []);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -130,7 +156,7 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* ================= STATS GRID (DRIVER-WISE LATEST STATUS) ================= */}
+        {/* ================= STATS GRID ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
           <StatCard
             title="Total Tasks"
@@ -141,10 +167,10 @@ useEffect(() => {
           />
           <StatCard
             title="Active"
-            value={stats.completed}
+            value={stats.active}
             icon={<MdCheckCircleOutline />}
             color="green"
-            onClick={() => navigate("/duty-records/completed")}
+            onClick={() => navigate("/duty-records/active")}
           />
           <StatCard
             title="In Progress"
@@ -163,7 +189,9 @@ useEffect(() => {
         </div>
 
         <div className="flex items-center gap-3 mb-6">
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">Management Console</h2>
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">
+            Management Console
+          </h2>
           <div className="h-[1px] flex-1 bg-slate-200"></div>
         </div>
 
@@ -210,7 +238,9 @@ useEffect(() => {
               <MdBarChart className="text-2xl text-indigo-600" />
             </div>
             <span className="text-lg font-bold text-slate-900">Daywise Report</span>
-            <span className="text-slate-500 text-xs font-medium">Analytics & Exports</span>
+            <span className="text-slate-500 text-xs font-medium">
+              Analytics & Exports
+            </span>
           </button>
         </div>
       </div>

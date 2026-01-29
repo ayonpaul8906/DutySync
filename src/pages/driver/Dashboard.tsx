@@ -40,13 +40,6 @@ interface Task {
   createdAt?: any;
   fuelQuantity?: number;
   openingKm?: number;
-} 
-
-function isToday(task: Task) {
-  const today = new Date().toDateString();
-  if (task.createdAt?.toDate) return task.createdAt.toDate().toDateString() === today;
-  if (task.date) return new Date(task.date).toDateString() === today;
-  return false;
 }
 
 export default function DriverDashboard() {
@@ -72,9 +65,6 @@ export default function DriverDashboard() {
     const handleTabClose = () => {
       const user = auth.currentUser;
       if (user) {
-        // Note: updateDoc might not always finish in a tab-close event. 
-        // For 100% reliability, Firebase Presence (Realtime DB) is usually used,
-        // but this is the Firestore way to attempt it.
         const driverRef = doc(db, "drivers", user.uid);
         updateDoc(driverRef, { locationstatus: "offline" });
       }
@@ -97,16 +87,20 @@ export default function DriverDashboard() {
           async (position) => {
             const { latitude, longitude } = position.coords;
             setGpsStatus("tracking");
-            
+
             try {
               const driverRef = doc(db, "drivers", user.uid);
-              await setDoc(driverRef, {
-                latitude,
-                longitude,
-                lastUpdated: serverTimestamp(),
-                driverId: user.uid,
-                locationstatus: "online" // Driver is active in dashboard
-              }, { merge: true });
+              await setDoc(
+                driverRef,
+                {
+                  latitude,
+                  longitude,
+                  lastUpdated: serverTimestamp(),
+                  driverId: user.uid,
+                  locationstatus: "online", // Driver is active in dashboard
+                },
+                { merge: true }
+              );
             } catch (e) {
               console.error("Firestore Sync Error:", e);
             }
@@ -115,10 +109,9 @@ export default function DriverDashboard() {
             console.error("GPS Error:", err);
             setGpsStatus("error");
           },
-          { 
-            enableHighAccuracy: true, 
-
-            maximumAge: 0 
+          {
+            enableHighAccuracy: true,
+            maximumAge: 0,
           }
         );
       } else {
@@ -150,190 +143,179 @@ export default function DriverDashboard() {
       const completed = list.filter((t) => t.status === "completed").length;
       const pending = list.filter((t) => t.status !== "completed").length;
       const totalFuel = list.reduce((acc, curr) => acc + (Number(curr.fuelQuantity) || 0), 0);
-      
+
       setStats((s) => ({ ...s, completed, pending, totalFuel }));
       setTasks(list);
       setLoading(false);
     });
 
-    return () => { unsubUser(); unsubTasks(); };
+    return () => {
+      unsubUser();
+      unsubTasks();
+    };
   }, []);
 
   /* ================= ACTIONS ================= */
-async function handleStartTrip() {
-  const currentStart = Number(startingKm);
-  const uid = auth.currentUser?.uid;
+  async function handleStartTrip() {
+    const currentStart = Number(startingKm);
+    const uid = auth.currentUser?.uid;
 
-  // 1. Basic Validation
-  if (!startingKm || isNaN(currentStart)) {
-    alert("Enter valid starting KM");
-    return;
+    if (!startingKm || isNaN(currentStart)) {
+      alert("Enter valid starting KM");
+      return;
+    }
+    if (!selectedTask || !uid) return;
+
+    try {
+      const driverRef = doc(db, "drivers", uid);
+      const driverSnap = await getDoc(driverRef);
+
+      const lastTripEnd = driverSnap.exists()
+        ? driverSnap.data().lastTripEndKm || 0
+        : 0;
+
+      if (currentStart < lastTripEnd) {
+        alert(`Validation Failed: You have entered less KM than last journey (${lastTripEnd} KM).`);
+        return;
+      }
+
+      await updateDoc(doc(db, "tasks", selectedTask.id), {
+        status: "in-progress",
+        startedAt: serverTimestamp(),
+        openingKm: currentStart,
+      });
+
+      await updateDoc(driverRef, {
+        locationstatus: "online",
+        activeStatus: "in-progress",
+        active: false,
+      });
+
+      setShowStartModal(false);
+      setStartingKm("");
+      setSelectedTask(null);
+      console.log("Trip started successfully");
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error starting trip:", error);
+        alert("Error starting trip: " + error.message);
+      } else {
+        console.error("Error starting trip:", error);
+        alert("Error starting trip");
+      }
+    }
   }
-  if (!selectedTask || !uid) return;
 
-  try {
-    // 2. Fetch Driver data to verify KM logic
-    const driverRef = doc(db, "drivers", uid);
-    const driverSnap = await getDoc(driverRef);
-    
-    // Get the last journey's end KM from the driver's profile
-    const lastTripEnd = driverSnap.exists() 
-      ? driverSnap.data().lastTripEndKm || 0 
-      : 0;
+  async function completeJourney() {
+    if (!selectedTask) return;
 
-    // 3. 🔥 KM Validation Check (The logic from your APK)
-    if (currentStart < lastTripEnd) {
-      alert(`Validation Failed: You have entered less KM than last journey (${lastTripEnd} KM).`);
+    const uid = auth.currentUser?.uid;
+    const close = Number(completion.closingKm);
+    const open = selectedTask.openingKm || 0;
+
+    if (isNaN(close) || !completion.closingKm) {
+      alert("Input Error: Please enter valid closing KM.");
       return;
     }
 
-    // 4. Update the Task
-    await updateDoc(doc(db, "tasks", selectedTask.id), {
-      status: "in-progress",
-      startedAt: serverTimestamp(),
-      openingKm: currentStart,
-    });
+    if (close <= open) {
+      alert("Validation Failed: You have entered less than initialize km");
+      return;
+    }
 
-    // 5. Update Driver Status
-    // Note: Using updateDoc here as per your snippet
-    await updateDoc(driverRef, { 
-      locationstatus: "online", 
-      activeStatus: "in-progress", 
-      active: false 
-    });
-    
-    // 6. UI Cleanup
-    setShowStartModal(false);
-    setStartingKm("");
-    setSelectedTask(null);
-    
-    // Optional success message
-    console.log("Trip started successfully");
+    if (!uid) return;
 
-  } catch (error) {
-  if (error instanceof Error) {
-    console.error("Error starting trip:", error);
-    alert("Error starting trip: " + error.message);
-  } else {
-    console.error("Error starting trip:", error);
-    alert("Error starting trip");
+    try {
+      setSubmitting(true);
+
+      const driverRef = doc(db, "drivers", uid);
+      const taskRef = doc(db, "tasks", selectedTask.id);
+      const userRef = doc(db, "users", uid);
+      const kms = close - open;
+
+      await updateDoc(taskRef, {
+        status: "completed",
+        closingKm: close,
+        fuelQuantity: Number(completion.fuelQuantity) || 0,
+        fuelAmount: Number(completion.amount) || 0,
+        kilometers: kms,
+        completedAt: serverTimestamp(),
+      });
+
+      await setDoc(
+        driverRef,
+        {
+          activeStatus: "active",
+          active: true,
+          lastTripEndKm: close,
+          totalKilometers: increment(kms),
+          locationstatus: "online",
+        },
+        { merge: true }
+      );
+
+      await updateDoc(userRef, {
+        totalKms: increment(kms),
+      });
+
+      setShowModal(false);
+      setCompletion({ closingKm: "", fuelQuantity: "", amount: "" });
+      setSelectedTask(null);
+
+      alert("Success: Journey completed successfully!");
+    } catch (e) {
+      if (e instanceof Error) {
+        console.error("Sync Error:", e);
+        alert("Sync Error: " + e.message);
+      } else {
+        console.error("Sync Error:", e);
+        alert("Sync Error occurred");
+      }
+    }
   }
-}
-}
 
-  async function completeJourney() {
-  if (!selectedTask) return;
-  
-  const uid = auth.currentUser?.uid;
-  const close = Number(completion.closingKm);
-  const open = selectedTask.openingKm || 0;
-
-  // 1. Basic Numeric Validation
-  if (isNaN(close) || !completion.closingKm) {
-    alert("Input Error: Please enter valid closing KM.");
-    return;
-  }
-
-  // 2. 🔥 Validation Check (Matching Mobile logic)
-  if (close <= open) {
-    alert("Validation Failed: You have entered less than initialize km");
-    return;
-  }
-
-  if (!uid) return;
-
-  try {
-    setSubmitting(true);
-    
-    const driverRef = doc(db, "drivers", uid);
-    const taskRef = doc(db, "tasks", selectedTask.id);
-    const userRef = doc(db, "users", uid);
-    const kms = close - open;
-
-    // 3. Update the Task Document
-    await updateDoc(taskRef, {
-      status: "completed",
-      closingKm: close,
-      fuelQuantity: Number(completion.fuelQuantity) || 0,
-      fuelAmount: Number(completion.amount) || 0,
-      kilometers: kms,
-      completedAt: serverTimestamp(),
-    });
-
-    // 4. Update Driver Profile (Crucial: sets lastTripEndKm for the next trip)
-    // Using setDoc with merge: true to match your mobile implementation
-    await setDoc(
-      driverRef,
-      {
-        activeStatus: "active",
-        active: true,
-        lastTripEndKm: close, // 🔥 This enables the StartTrip validation for next time
-        totalKilometers: increment(kms),
-        locationstatus: "online",
-      },
-      { merge: true }
-    );
-
-    // 5. Update User Profile for global stats
-    await updateDoc(userRef, { 
-      totalKms: increment(kms) 
-    });
-
-    // 6. UI Cleanup
-    setShowModal(false);
-    setCompletion({ closingKm: "", fuelQuantity: "", amount: "" });
-    setSelectedTask(null);
-    
-    alert("Success: Journey completed successfully!");
-
-  } catch (e) {
-  if (e instanceof Error) {
-    console.error("Sync Error:", e);
-    alert("Sync Error: " + e.message);
-  } else {
-    console.error("Sync Error:", e);
-    alert("Sync Error occurred");
-  }
-}
-}
-
-  const handleLogout = async () => { 
+  const handleLogout = async () => {
     const user = auth.currentUser;
     if (user) {
-      // Set to offline immediately on logout
       await updateDoc(doc(db, "drivers", user.uid), { locationstatus: "offline" });
     }
-    await signOut(auth); 
-    navigate("/login"); 
+    await signOut(auth);
+    navigate("/login");
   };
 
-  const todayTasks = tasks.filter((t) => isToday(t) && t.status !== "completed");
-//   const pastTasks = tasks.filter((t) => !isToday(t) || t.status === "completed");
+  // NON DAY-WISE: all active (non completed) tasks for this driver
+  const activeTasks = tasks.filter((t) => t.status !== "completed");
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
-      {/* ... (UI code remains exactly the same as your provided design) ... */}
       <div className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
           <div>
             <div className="flex items-center gap-2 mb-1">
-                {gpsStatus === "tracking" ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">System Live • Tracking</p>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">GPS Inactive</p>
-                  </>
-                )}
+              {gpsStatus === "tracking" ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    System Live • Tracking
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+                    GPS Inactive
+                  </p>
+                </>
+              )}
             </div>
             <h1 className="text-2xl font-black text-slate-900 leading-tight">
               AMPL <span className="text-blue-600">Driver</span>
             </h1>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-red-50 hover:text-red-500 transition-all shadow-sm active:scale-95">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-red-50 hover:text-red-500 transition-all shadow-sm active:scale-95"
+          >
             Logout <MdLogout size={18} />
           </button>
         </div>
@@ -341,25 +323,30 @@ async function handleStartTrip() {
 
       <div className="max-w-6xl mx-auto px-6 mt-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-          <StatCard icon={<MdSpeed/>} label="Total KM" value={stats.totalKms.toLocaleString()} color="indigo" />
-          <StatCard icon={<MdCheckCircle/>} label="Finished" value={stats.completed} color="emerald" />
-          <StatCard icon={<MdAccessTime/>} label="Upcoming" value={stats.pending} color="amber" />
-          <StatCard icon={<MdLocalGasStation/>} label="Fuel (L)" value={stats.totalFuel.toFixed(1)} color="blue" />
+          <StatCard icon={<MdSpeed />} label="Total KM" value={stats.totalKms.toLocaleString()} color="indigo" />
+          <StatCard icon={<MdCheckCircle />} label="Finished" value={stats.completed} color="emerald" />
+          <StatCard icon={<MdAccessTime />} label="Upcoming" value={stats.pending} color="amber" />
+          <StatCard icon={<MdLocalGasStation />} label="Fuel (L)" value={stats.totalFuel.toFixed(1)} color="blue" />
         </div>
 
         {/* DUTY LIST SECTION */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             {loading ? (
-              <div className="py-20 flex justify-center"><div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" /></div>
-            ) : todayTasks.length === 0 ? (
+              <div className="py-20 flex justify-center">
+                <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+              </div>
+            ) : activeTasks.length === 0 ? (
               <div className="bg-white border border-slate-200 border-dashed rounded-[2rem] p-12 text-center">
-                <p className="text-slate-400 font-bold">No active assignments for today.</p>
+                <p className="text-slate-400 font-bold">No active assignments.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {todayTasks.map((task) => (
-                  <div key={task.id} className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-all">
+                {activeTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-all"
+                  >
                     <div className="p-8">
                       <div className="flex justify-between items-start mb-6">
                         <div className="flex items-center gap-4">
@@ -368,28 +355,50 @@ async function handleStartTrip() {
                           </div>
                           <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase">Passenger</p>
-                            <h3 className="text-xl font-black text-slate-900">{task.passenger?.name || "Corporate Guest"}</h3>
+                            <h3 className="text-xl font-black text-slate-900">
+                              {task.passenger?.name || "Corporate Guest"}
+                            </h3>
                           </div>
                         </div>
-                        <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase ${task.status === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span
+                          className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase ${
+                            task.status === "in-progress"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
                           {task.status}
                         </span>
                       </div>
                       <div className="flex items-center gap-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                         <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm shrink-0">
-                           <MdLocationOn size={22} />
-                         </div>
-                         <p className="font-bold text-slate-600 text-sm">{task.tourLocation || `${task.pickup} → ${task.drop}`}</p>
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                          <MdLocationOn size={22} />
+                        </div>
+                        <p className="font-bold text-slate-600 text-sm">
+                          {task.tourLocation || `${task.pickup} → ${task.drop}`}
+                        </p>
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50 border-t border-slate-100">
                       {task.status === "assigned" ? (
-                        <button onClick={() => { setSelectedTask(task); setShowStartModal(true); }} className="w-full py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2">
-                            <MdPlayCircle size={20}/> Start Trip
+                        <button
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setShowStartModal(true);
+                          }}
+                          className="w-full py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                          <MdPlayCircle size={20} /> Start Trip
                         </button>
                       ) : (
-                        <button onClick={() => { setSelectedTask(task); setShowModal(true); }} className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2">
-                            <MdFlag size={20}/> Complete Duty
+                        <button
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setShowModal(true);
+                          }}
+                          className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                          <MdFlag size={20} /> Complete Duty
                         </button>
                       )}
                     </div>
@@ -399,10 +408,10 @@ async function handleStartTrip() {
             )}
           </div>
           <div className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm h-fit">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <MdHistory size={16}/> Recent Logs
-              </h3>
-              {/* History Map logic here */}
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+              <MdHistory size={16} /> Recent Logs
+            </h3>
+            {/* History Map logic here */}
           </div>
         </div>
       </div>
@@ -411,11 +420,21 @@ async function handleStartTrip() {
       {showStartModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-6">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-fade-in">
-             <h3 className="font-black text-2xl text-slate-900 tracking-tight">Initialize Trip</h3>
-             <div className="my-6">
-                <LogInput icon={<MdSpeed/>} label="Start KM" value={startingKm} onChange={(v:string)=>setStartingKm(v)} />
-             </div>
-             <button onClick={handleStartTrip} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest">Begin Journey</button>
+            <h3 className="font-black text-2xl text-slate-900 tracking-tight">Initialize Trip</h3>
+            <div className="my-6">
+              <LogInput
+                icon={<MdSpeed />}
+                label="Start KM"
+                value={startingKm}
+                onChange={(v: string) => setStartingKm(v)}
+              />
+            </div>
+            <button
+              onClick={handleStartTrip}
+              className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest"
+            >
+              Begin Journey
+            </button>
           </div>
         </div>
       )}
@@ -423,12 +442,27 @@ async function handleStartTrip() {
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-6">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-fade-in">
-             <h3 className="font-black text-2xl text-slate-900 tracking-tight">Complete Duty</h3>
-             <div className="space-y-3 my-6">
-                <LogInput icon={<MdSpeed/>} label="Closing KM" value={completion.closingKm} onChange={(v:string)=>setCompletion({...completion, closingKm: v})} />
-                <LogInput icon={<MdLocalGasStation/>} label="Fuel (Liters)" value={completion.fuelQuantity} onChange={(v:string)=>setCompletion({...completion, fuelQuantity: v})} />
-             </div>
-             <button onClick={completeJourney} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest">Submit Duty</button>
+            <h3 className="font-black text-2xl text-slate-900 tracking-tight">Complete Duty</h3>
+            <div className="space-y-3 my-6">
+              <LogInput
+                icon={<MdSpeed />}
+                label="Closing KM"
+                value={completion.closingKm}
+                onChange={(v: string) => setCompletion({ ...completion, closingKm: v })}
+              />
+              <LogInput
+                icon={<MdLocalGasStation />}
+                label="Fuel (Liters)"
+                value={completion.fuelQuantity}
+                onChange={(v: string) => setCompletion({ ...completion, fuelQuantity: v })}
+              />
+            </div>
+            <button
+              onClick={completeJourney}
+              className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest"
+            >
+              Submit Duty
+            </button>
           </div>
         </div>
       )}
@@ -437,20 +471,32 @@ async function handleStartTrip() {
 }
 
 /* UI COMPONENTS */
-function StatCard({ icon, label, value, color }: { icon: ReactNode; label: string; value: string | number; color: 'indigo' | 'emerald' | 'amber' | 'blue' }) {
-    const iconStyles = {
-        indigo: 'bg-indigo-50 text-indigo-600',
-        emerald: 'bg-emerald-50 text-emerald-600',
-        amber: 'bg-amber-50 text-amber-500',
-        blue: 'bg-blue-50 text-blue-600'
-    };
-    return (
-        <div className="rounded-[1.5rem] p-6 border border-slate-200 bg-white shadow-sm flex flex-col hover:border-blue-200 transition-colors">
-            <div className={`w-10 h-10 ${iconStyles[color]} rounded-xl flex items-center justify-center mb-4`}>{icon}</div>
-            <h4 className="text-3xl font-black text-slate-900 mb-1 leading-none">{value}</h4>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-        </div>
-    );
+function StatCard({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  color: "indigo" | "emerald" | "amber" | "blue";
+}) {
+  const iconStyles = {
+    indigo: "bg-indigo-50 text-indigo-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-500",
+    blue: "bg-blue-50 text-blue-600",
+  };
+  return (
+    <div className="rounded-[1.5rem] p-6 border border-slate-200 bg-white shadow-sm flex flex-col hover:border-blue-200 transition-colors">
+      <div className={`w-10 h-10 ${iconStyles[color]} rounded-xl flex items-center justify-center mb-4`}>
+        {icon}
+      </div>
+      <h4 className="text-3xl font-black text-slate-900 mb-1 leading-none">{value}</h4>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+    </div>
+  );
 }
 
 function LogInput({ icon, label, value, onChange }: any) {
