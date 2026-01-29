@@ -15,6 +15,7 @@ import DriverDashboard from "./pages/driver/Dashboard";
 import DutyRecords from "./pages/admin/DutyRecords";
 import DriverProfile from "./pages/admin/DriverProfile";
 import DaywiseReport from "./pages/admin/DaywiseReport";
+import DriverDutyRecord from "./pages/driver/DutyRecords";
 
 /* ================= APP ================= */
 
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/duty-records/:status" element={<DutyRecords />} />
         <Route path="/manage-drivers/:status?" element={<ManageDrivers />} />
         <Route path="/admin/driver-profile/:driverId" element={<DriverProfile />} />
+        <Route path="/driver-duties/:mode" element={<DriverDutyRecord />} />
 
         <Route
           path="/live-tracking"

@@ -28,7 +28,7 @@ import {
   MdHistory,
 } from "react-icons/md";
 
-/* ================= TYPES & HELPERS ================= */
+/* ================= TYPES ================= */
 interface Task {
   id: string;
   tourLocation?: string;
@@ -42,17 +42,24 @@ interface Task {
   openingKm?: number;
 }
 
+/* ================= COMPONENT ================= */
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalKms: 0, completed: 0, pending: 0, totalFuel: 0 });
+  const [stats, setStats] = useState({
+    totalKms: 0,
+    totalTrips: 0,
+    activeDuties: 0,
+    totalFuel: 0,
+  });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [_submitting, setSubmitting] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [startingKm, setStartingKm] = useState("");
-  const [gpsStatus, setGpsStatus] = useState<"tracking" | "error" | "searching">("searching");
+  const [gpsStatus, setGpsStatus] =
+    useState<"tracking" | "error" | "searching">("searching");
 
   const [completion, setCompletion] = useState({
     closingKm: "",
@@ -60,7 +67,7 @@ export default function DriverDashboard() {
     amount: "",
   });
 
-  /* ================= TAB CLOSE / OFFLINE LOGIC ================= */
+  /* ================= TAB CLOSE / OFFLINE ================= */
   useEffect(() => {
     const handleTabClose = () => {
       const user = auth.currentUser;
@@ -74,7 +81,7 @@ export default function DriverDashboard() {
     return () => window.removeEventListener("beforeunload", handleTabClose);
   }, []);
 
-  /* ================= LIVE LOCATION TRACKING LOGIC ================= */
+  /* ================= LIVE LOCATION ================= */
   useEffect(() => {
     let watchId: number;
 
@@ -97,7 +104,7 @@ export default function DriverDashboard() {
                   longitude,
                   lastUpdated: serverTimestamp(),
                   driverId: user.uid,
-                  locationstatus: "online", // Driver is active in dashboard
+                  locationstatus: "online",
                 },
                 { merge: true }
               );
@@ -125,7 +132,7 @@ export default function DriverDashboard() {
     };
   }, []);
 
-  /* ================= DATA FETCHING ================= */
+  /* ================= DATA FETCH ================= */
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -139,12 +146,26 @@ export default function DriverDashboard() {
 
     const q = query(collection(db, "tasks"), where("driverId", "==", user.uid));
     const unsubTasks = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Task, "id">) }));
-      const completed = list.filter((t) => t.status === "completed").length;
-      const pending = list.filter((t) => t.status !== "completed").length;
-      const totalFuel = list.reduce((acc, curr) => acc + (Number(curr.fuelQuantity) || 0), 0);
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Task, "id">),
+      }));
 
-      setStats((s) => ({ ...s, completed, pending, totalFuel }));
+      const totalTrips = list.length;
+      const activeDuties = list.filter(
+        (t) => t.status === "assigned" || t.status === "in-progress"
+      ).length;
+      const totalFuel = list.reduce(
+        (acc, curr) => acc + (Number(curr.fuelQuantity) || 0),
+        0
+      );
+
+      setStats((s) => ({
+        ...s,
+        totalTrips,
+        activeDuties,
+        totalFuel,
+      }));
       setTasks(list);
       setLoading(false);
     });
@@ -175,7 +196,9 @@ export default function DriverDashboard() {
         : 0;
 
       if (currentStart < lastTripEnd) {
-        alert(`Validation Failed: You have entered less KM than last journey (${lastTripEnd} KM).`);
+        alert(
+          `Validation Failed: You have entered less KM than last journey (${lastTripEnd} KM).`
+        );
         return;
       }
 
@@ -283,8 +306,25 @@ export default function DriverDashboard() {
     navigate("/login");
   };
 
-  // NON DAY-WISE: all active (non completed) tasks for this driver
   const activeTasks = tasks.filter((t) => t.status !== "completed");
+
+  const recentCompletedTasks = tasks
+  .filter((t) => t.status === "completed")
+  .sort((a, b) => {
+    const aTime = a.completedAt?.toDate
+      ? a.completedAt.toDate().getTime()
+      : a.createdAt?.toDate
+      ? a.createdAt.toDate().getTime()
+      : 0;
+    const bTime = b.completedAt?.toDate
+      ? b.completedAt.toDate().getTime()
+      : b.createdAt?.toDate
+      ? b.createdAt.toDate().getTime()
+      : 0;
+    return bTime - aTime;
+  })
+  .slice(0, 4);
+
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
@@ -322,14 +362,37 @@ export default function DriverDashboard() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 mt-8">
+        {/* STATS GRID (clickable for Trips & Active Duties) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-          <StatCard icon={<MdSpeed />} label="Total KM" value={stats.totalKms.toLocaleString()} color="indigo" />
-          <StatCard icon={<MdCheckCircle />} label="Finished" value={stats.completed} color="emerald" />
-          <StatCard icon={<MdAccessTime />} label="Upcoming" value={stats.pending} color="amber" />
-          <StatCard icon={<MdLocalGasStation />} label="Fuel (L)" value={stats.totalFuel.toFixed(1)} color="blue" />
+          <StatCard
+            icon={<MdSpeed />}
+            label="Total KM"
+            value={stats.totalKms.toLocaleString()}
+            color="indigo"
+          />
+          <StatCard
+            icon={<MdCheckCircle />}
+            label="Total Trips"
+            value={stats.totalTrips}
+            color="emerald"
+            onClick={() => navigate("/driver-duties/all")}
+          />
+          <StatCard
+            icon={<MdAccessTime />}
+            label="Active Duties"
+            value={stats.activeDuties}
+            color="amber"
+            onClick={() => navigate("/driver-duties/active")}
+          />
+          <StatCard
+            icon={<MdLocalGasStation />}
+            label="Fuel (L)"
+            value={stats.totalFuel.toFixed(1)}
+            color="blue"
+          />
         </div>
 
-        {/* DUTY LIST SECTION */}
+        {/* DUTY LIST SECTION (unchanged) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             {loading ? (
@@ -354,7 +417,9 @@ export default function DriverDashboard() {
                             <MdPerson size={24} />
                           </div>
                           <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase">Passenger</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase">
+                              Passenger
+                            </p>
                             <h3 className="text-xl font-black text-slate-900">
                               {task.passenger?.name || "Corporate Guest"}
                             </h3>
@@ -408,19 +473,48 @@ export default function DriverDashboard() {
             )}
           </div>
           <div className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm h-fit">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-              <MdHistory size={16} /> Recent Logs
-            </h3>
-            {/* History Map logic here */}
+  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+    <MdHistory size={16} /> Recent Logs
+  </h3>
+
+  {recentCompletedTasks.length === 0 ? (
+    <p className="text-xs font-bold text-slate-300">
+      No completed trips yet.
+    </p>
+  ) : (
+    <div className="space-y-4">
+      {recentCompletedTasks.map((t) => (
+        <div
+          key={t.id}
+          className="border border-slate-100 rounded-2xl p-3 flex items-start gap-3 bg-slate-50"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black">
+            KM
           </div>
+          <div className="flex-1">
+            <p className="text-xs font-black text-slate-700 truncate">
+              {t.tourLocation || `${t.pickup || ""} → ${t.drop || ""}`}
+            </p>
+            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+              Status: completed
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* MODALS (unchanged) */}
       {showStartModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-6">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-fade-in">
-            <h3 className="font-black text-2xl text-slate-900 tracking-tight">Initialize Trip</h3>
+            <h3 className="font-black text-2xl text-slate-900 tracking-tight">
+              Initialize Trip
+            </h3>
             <div className="my-6">
               <LogInput
                 icon={<MdSpeed />}
@@ -442,19 +536,25 @@ export default function DriverDashboard() {
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-6">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-fade-in">
-            <h3 className="font-black text-2xl text-slate-900 tracking-tight">Complete Duty</h3>
+            <h3 className="font-black text-2xl text-slate-900 tracking-tight">
+              Complete Duty
+            </h3>
             <div className="space-y-3 my-6">
               <LogInput
                 icon={<MdSpeed />}
                 label="Closing KM"
                 value={completion.closingKm}
-                onChange={(v: string) => setCompletion({ ...completion, closingKm: v })}
+                onChange={(v: string) =>
+                  setCompletion({ ...completion, closingKm: v })
+                }
               />
               <LogInput
                 icon={<MdLocalGasStation />}
                 label="Fuel (Liters)"
                 value={completion.fuelQuantity}
-                onChange={(v: string) => setCompletion({ ...completion, fuelQuantity: v })}
+                onChange={(v: string) =>
+                  setCompletion({ ...completion, fuelQuantity: v })
+                }
               />
             </div>
             <button
@@ -476,11 +576,13 @@ function StatCard({
   label,
   value,
   color,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   value: string | number;
   color: "indigo" | "emerald" | "amber" | "blue";
+  onClick?: () => void;
 }) {
   const iconStyles = {
     indigo: "bg-indigo-50 text-indigo-600",
@@ -488,13 +590,25 @@ function StatCard({
     amber: "bg-amber-50 text-amber-500",
     blue: "bg-blue-50 text-blue-600",
   };
+  const clickable = !!onClick;
   return (
-    <div className="rounded-[1.5rem] p-6 border border-slate-200 bg-white shadow-sm flex flex-col hover:border-blue-200 transition-colors">
-      <div className={`w-10 h-10 ${iconStyles[color]} rounded-xl flex items-center justify-center mb-4`}>
+    <div
+      onClick={onClick}
+      className={`rounded-[1.5rem] p-6 border border-slate-200 bg-white shadow-sm flex flex-col ${
+        clickable ? "cursor-pointer hover:border-blue-200" : ""
+      } transition-colors`}
+    >
+      <div
+        className={`w-10 h-10 ${iconStyles[color]} rounded-xl flex items-center justify-center mb-4`}
+      >
         {icon}
       </div>
-      <h4 className="text-3xl font-black text-slate-900 mb-1 leading-none">{value}</h4>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+      <h4 className="text-3xl font-black text-slate-900 mb-1 leading-none">
+        {value}
+      </h4>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+        {label}
+      </p>
     </div>
   );
 }
@@ -502,7 +616,9 @@ function StatCard({
 function LogInput({ icon, label, value, onChange }: any) {
   return (
     <div className="relative">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">{icon}</div>
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
+        {icon}
+      </div>
       <input
         type="number"
         placeholder={label}
