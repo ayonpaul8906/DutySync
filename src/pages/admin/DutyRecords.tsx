@@ -20,6 +20,7 @@ import {
   MdFilterList,
   MdEventNote,
   MdDeleteOutline,
+  MdDirectionsCar
 } from "react-icons/md";
 
 interface TaskRecord {
@@ -36,6 +37,7 @@ interface TaskRecord {
   createdAt: any;
   date?: string;
   driverName?: string;
+  vehicleNumber?: string;
 }
 
 export default function DutyRecords() {
@@ -46,7 +48,10 @@ export default function DutyRecords() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
+    const qDrivers = query(
+      collection(db, "users"),
+      where("role", "==", "driver"),
+    );
     const qTasks = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
     const driversRef = collection(db, "drivers");
 
@@ -59,12 +64,16 @@ export default function DutyRecords() {
 
       // Listen to operational driver docs (activeStatus, active)
       const unsubDriverOps = onSnapshot(driversRef, (opsSnap) => {
-        const driverOps: Record<string, { activeStatus?: string; active?: boolean }> = {};
+        const driverOps: Record<
+          string,
+          { activeStatus?: string; active?: boolean; vehicleNumber?: string }
+        > = {};
         opsSnap.docs.forEach((d) => {
           const data = d.data() as any;
           driverOps[d.id] = {
             activeStatus: data.activeStatus,
             active: data.active,
+            vehicleNumber: data.vehicleNumber,
           };
         });
 
@@ -79,7 +88,8 @@ export default function DutyRecords() {
           const tasksByDriver: Record<string, TaskRecord[]> = {};
           allTasks.forEach((task) => {
             if (!task.driverId) return;
-            if (!tasksByDriver[task.driverId]) tasksByDriver[task.driverId] = [];
+            if (!tasksByDriver[task.driverId])
+              tasksByDriver[task.driverId] = [];
             tasksByDriver[task.driverId].push(task);
           });
 
@@ -103,7 +113,6 @@ export default function DutyRecords() {
             if (status === "all") {
               latestMatch = sorted[0];
             } else if (status === "active") {
-              // show latest task only for drivers that are active (activeStatus="active", active=true)
               const ops = driverOps[driverId];
               if (ops?.active === true && ops?.activeStatus === "active") {
                 latestMatch = sorted[0];
@@ -119,7 +128,10 @@ export default function DutyRecords() {
 
           const withDriverNames = latestTasksPerDriver.map((t) => ({
             ...t,
-            driverName: drivers.find((d) => d.id === t.driverId)?.name || "Unknown Driver",
+            driverName:
+              drivers.find((d) => d.id === t.driverId)?.name ||
+              "Unknown Driver",
+            vehicleNumber: driverOps[t.driverId]?.vehicleNumber || "N/A",
           }));
 
           setTasks(withDriverNames);
@@ -138,7 +150,7 @@ export default function DutyRecords() {
   const handleDelete = async (task: TaskRecord) => {
     if (
       window.confirm(
-        `Are you sure you want to delete ${task.passenger?.name}'s duty? Driver ${task.driverName} will be set to active.`
+        `Are you sure you want to delete ${task.passenger?.name}'s duty? Driver ${task.driverName} will be set to active.`,
       )
     ) {
       try {
@@ -163,7 +175,7 @@ export default function DutyRecords() {
     (t) =>
       t.passenger?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.driverName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.tourLocation?.toLowerCase().includes(searchQuery.toLowerCase())
+      t.tourLocation?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -184,11 +196,12 @@ export default function DutyRecords() {
                 {status === "all"
                   ? "Current Duties"
                   : status === "active"
-                  ? "Latest Active Drivers"
-                  : `Latest ${status?.replace("-", " ")} per Driver`}
+                    ? "Latest Active Drivers"
+                    : `Latest ${status?.replace("-", " ")} per Driver`}
               </h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                <MdFilterList className="text-blue-600" /> Driver latest task by status
+                <MdFilterList className="text-blue-600" /> Driver latest task by
+                status
               </p>
             </div>
           </div>
@@ -196,7 +209,9 @@ export default function DutyRecords() {
             <span className="text-xl font-black text-blue-600 block leading-none">
               {filteredTasks.length}
             </span>
-            <span className="text-[9px] font-black text-slate-400 uppercase">Entries</span>
+            <span className="text-[9px] font-black text-slate-400 uppercase">
+              Entries
+            </span>
           </div>
         </div>
 
@@ -235,8 +250,8 @@ export default function DutyRecords() {
                       task.status === "completed"
                         ? "bg-green-100 text-green-700"
                         : task.status === "in-progress"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-blue-100 text-blue-700"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-blue-100 text-blue-700"
                     }`}
                   >
                     {task.status}
@@ -263,7 +278,8 @@ export default function DutyRecords() {
                       <span>{task.passenger?.heads || 0}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] font-black text-slate-400 uppercase tracking-tight">
-                      <MdEventNote className="text-blue-500" size={16} /> {task.tourTime}
+                      <MdEventNote className="text-blue-500" size={16} />{" "}
+                      {task.tourTime}
                     </div>
                   </div>
                 </div>
@@ -290,11 +306,17 @@ export default function DutyRecords() {
                       <p className="text-sm font-black text-slate-700">
                         {task.driverName}
                       </p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <MdDirectionsCar size={12} className="text-blue-600" />
+                        <p className="text-[11px] font-black text-blue-600 uppercase tracking-wider">
+                          {task.vehicleNumber}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-1 rounded-md">
+                  {/* <p className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-1 rounded-md">
                     ID: {task.id.slice(-6).toUpperCase()}
-                  </p>
+                  </p> */}
                 </div>
               </div>
             ))}
