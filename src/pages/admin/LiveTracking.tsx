@@ -52,64 +52,87 @@ export default function LiveTracking() {
   // ---------------------------
   // FIRESTORE REALTIME SYNC
   // ---------------------------
-  useEffect(() => {
-    // 1. Listen to Users collection for Driver details
-    const qUsers = query(collection(db, "users"), where("role", "==", "driver"));
-    const unsubUsers = onSnapshot(qUsers, (userSnap) => {
-      const userList = userSnap.docs.map((doc) => ({
-        id: doc.id,
-        name: doc.data().name || "Unknown Driver",
-        email: doc.data().email || "",
-      }));
+// 1) Listen to users (driver metadata)
+useEffect(() => {
+  const qUsers = query(collection(db, "users"), where("role", "==", "driver"));
+  const unsubUsers = onSnapshot(qUsers, (userSnap) => {
+    setDrivers((prev) => {
+      const prevMap = new Map(prev.map((d) => [d.id, d]));
+      const next: Driver[] = [];
 
-      // 2. Listen to Drivers collection for live GPS
-      const unsubLocations = onSnapshot(collection(db, "drivers"), (locSnap) => {
-        const locations: any = {};
-        locSnap.docs.forEach((doc) => {
-          locations[doc.id] = doc.data();
-        });
-
-        const mergedDrivers = userList.map((user) => {
-          const locData = locations[user.id];
-          const lat = locData?.latitude ?? locData?.currentLocation?.latitude;
-          const lng = locData?.longitude ?? locData?.currentLocation?.longitude;
-          const isValid = Number.isFinite(lat) && Number.isFinite(lng);
-
-          return {
-            ...user,
-            latitude: lat,
-            longitude: lng,
-            isOnline: isValid,
-          } as Driver;
-        });
-
-        setDrivers(mergedDrivers);
-        updateMarkers(mergedDrivers);
+      userSnap.docs.forEach((doc) => {
+        const existing = prevMap.get(doc.id);
+        const base: Driver = {
+          id: doc.id,
+          name: doc.data().name || "Unknown Driver",
+          email: doc.data().email || "",
+          latitude: existing?.latitude,
+          longitude: existing?.longitude,
+          isOnline: existing?.isOnline ?? false,
+        };
+        next.push(base);
       });
 
-      return () => unsubLocations();
+      return next;
+    });
+  });
+
+  return () => unsubUsers();
+}, []);
+
+// 2) Listen to drivers (live GPS)
+useEffect(() => {
+  const unsubLocations = onSnapshot(collection(db, "drivers"), (locSnap) => {
+    const locations: Record<string, any> = {};
+    locSnap.docs.forEach((doc) => {
+      locations[doc.id] = doc.data();
     });
 
-    return () => unsubUsers();
-  }, []);
+    setDrivers((prev) => {
+      const updated = prev.map((user) => {
+        const locData = locations[user.id];
+        const lat =
+          locData?.latitude ?? locData?.currentLocation?.latitude ?? null;
+        const lng =
+          locData?.longitude ?? locData?.currentLocation?.longitude ?? null;
+
+        const isValid = Number.isFinite(lat) && Number.isFinite(lng);
+
+        return {
+          ...user,
+          latitude: isValid ? lat : undefined,
+          longitude: isValid ? lng : undefined,
+          isOnline: isValid && locData?.locationstatus === "online",
+        };
+      });
+
+      updateMarkers(updated);
+      return updated;
+    });
+  });
+
+  return () => unsubLocations();
+}, []);
+
 
   // ---------------------------
   // MARKER MANAGEMENT
   // ---------------------------
-  const updateMarkers = (driverData: Driver[]) => {
-    if (!mapRef.current) return;
+const updateMarkers = (driverData: Driver[]) => {
+  if (!mapRef.current) return;
 
-    driverData.forEach((d) => {
-      if (!d.latitude || !d.longitude) return;
-      const pos: [number, number] = [d.latitude, d.longitude];
+  driverData.forEach((d) => {
+    if (typeof d.latitude !== "number" || typeof d.longitude !== "number")
+      return;
 
-      if (markersRef.current[d.id]) {
-        markersRef.current[d.id].setLatLng(pos);
-      } else {
-        const carIcon = L.divIcon({
-          className: "custom-marker",
-          html: `
-            <div class="marker-container">
+    const pos: [number, number] = [d.latitude, d.longitude];
+
+    if (markersRef.current[d.id]) {
+      markersRef.current[d.id].setLatLng(pos);
+    } else {
+      const carIcon = L.divIcon({
+        className: "custom-marker",
+        html: `<div class="marker-container">
               <div class="pulse"></div>
               <div class="car-card">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
@@ -117,16 +140,21 @@ export default function LiveTracking() {
                 </svg>
               </div>
             </div>`,
-          iconSize: [38, 38],
-          iconAnchor: [19, 19],
-        });
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+      });
 
-        markersRef.current[d.id] = L.marker(pos, { icon: carIcon })
-          .addTo(mapRef.current!)
-          .bindPopup(`<b>${d.name}</b><br/>Driver Status: Online`);
-      }
-    });
-  };
+      markersRef.current[d.id] = L.marker(pos, { icon: carIcon })
+        .addTo(mapRef.current!)
+        .bindPopup(`<b>${d.name}</b><br/>Driver Status: Online`);
+    }
+  });
+
+  setTimeout(() => {
+    mapRef.current?.invalidateSize();
+  }, 100);
+};
+
 
   // ---------------------------
   // SEARCH & SUGGESTION LOGIC
@@ -150,7 +178,11 @@ export default function LiveTracking() {
   return (
     <div className="relative w-full h-screen bg-slate-100 overflow-hidden font-sans">
       {/* MAP VIEW */}
-      <div id="map-container" className="absolute inset-0 z-0" />
+      <div
+  id="map-container"
+  className="absolute inset-0 z-0 w-full h-full"
+/>
+
 
       {/* SEARCH BAR & LIST TOGGLE */}
       <div className="absolute top-6 left-0 right-0 z-[1000] px-4 flex justify-center items-start gap-3">

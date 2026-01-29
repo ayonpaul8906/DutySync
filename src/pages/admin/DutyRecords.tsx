@@ -42,49 +42,70 @@ export default function DutyRecords() {
       }));
 
       const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
-        const today = new Date().toDateString();
-
         const allTasks = taskSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as TaskRecord[];
 
-        const filtered = allTasks
-          .filter(t => {
-            const taskDate = t.createdAt?.toDate 
-              ? t.createdAt.toDate().toDateString() 
-              : new Date(t.date || "").toDateString();
-            
-            const isToday = taskDate === today;
-            const matchesStatus = (status === "all" ? true : t.status === status);
-            
-            return isToday && matchesStatus;
-          })
-          .map(t => ({
-            ...t,
-            driverName: drivers.find(d => d.id === t.driverId)?.name || "Unknown Driver"
-          }));
+        // Group tasks by driver
+        const tasksByDriver: Record<string, TaskRecord[]> = {};
+        allTasks.forEach(task => {
+          if (!task.driverId) return;
+          if (!tasksByDriver[task.driverId]) tasksByDriver[task.driverId] = [];
+          tasksByDriver[task.driverId].push(task);
+        });
 
-        setTasks(filtered);
+        const latestTasksPerDriver: TaskRecord[] = [];
+
+        Object.keys(tasksByDriver).forEach(driverId => {
+          const driverTasks = tasksByDriver[driverId];
+
+          // Sort tasks newest first by createdAt
+          const sorted = [...driverTasks].sort((a, b) => {
+            const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.date || "").getTime();
+            const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.date || "").getTime();
+            return bTime - aTime;
+          });
+
+          // Find the latest task that matches the current status filter
+          let latestMatch: TaskRecord | undefined;
+
+          if (status === "all") {
+            latestMatch = sorted[0]; // latest task of that driver regardless of status
+          } else {
+            latestMatch = sorted.find(t => t.status === status);
+          }
+
+          if (latestMatch) {
+            latestTasksPerDriver.push(latestMatch);
+          }
+        });
+
+        // Attach driverName
+        const withDriverNames = latestTasksPerDriver.map(t => ({
+          ...t,
+          driverName: drivers.find(d => d.id === t.driverId)?.name || "Unknown Driver"
+        }));
+
+        setTasks(withDriverNames);
         setLoading(false);
       });
+
       return () => unsubTasks();
     });
     return () => unsubDrivers();
   }, [status]);
 
-  // Updated Delete Logic with Driver Status Reset
+  // Delete logic remains same
   const handleDelete = async (task: TaskRecord) => {
     if (window.confirm(`Are you sure you want to delete ${task.passenger?.name}'s duty? Driver ${task.driverName} will be set to active.`)) {
       try {
-        // 1. Delete the task document
         await deleteDoc(doc(db, "tasks", task.id));
 
-        // 2. Update the driver status back to "active" in the drivers collection
         if (task.driverId) {
           const driverRef = doc(db, "drivers", task.driverId);
           await updateDoc(driverRef, {
-            activeStatus: "active" // This resets the driver's availability
+            activeStatus: "active"
           });
         }
 
@@ -118,10 +139,10 @@ export default function DutyRecords() {
             </button>
             <div>
               <h1 className="text-3xl font-black text-slate-900 capitalize tracking-tight">
-                {status === 'all' ? "Today's Total" : `Today's ${status?.replace('-', ' ')}`}
+                {status === 'all' ? "Latest per Driver" : `Latest ${status?.replace('-', ' ')} per Driver`}
               </h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                <MdFilterList className="text-blue-600"/> Daywise Operational Records
+                <MdFilterList className="text-blue-600"/> Driver latest task by status
               </p>
             </div>
           </div>
@@ -136,7 +157,7 @@ export default function DutyRecords() {
           <MdSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
           <input 
             type="text"
-            placeholder="Search today's records..."
+            placeholder="Search records..."
             className="w-full h-16 bg-white border border-slate-200 rounded-2xl pl-14 pr-6 font-bold text-slate-700 outline-none focus:border-blue-500 transition-all shadow-sm"
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -220,7 +241,7 @@ export default function DutyRecords() {
               <MdFilterList className="text-slate-200" size={40} />
             </div>
             <p className="text-slate-400 font-black uppercase text-sm tracking-widest">Zero entries found</p>
-            <p className="text-slate-300 text-xs font-bold mt-2 tracking-tight">No duties match your current filter for today.</p>
+            <p className="text-slate-300 text-xs font-bold mt-2 tracking-tight">No duties match your current filter.</p>
           </div>
         )}
       </div>

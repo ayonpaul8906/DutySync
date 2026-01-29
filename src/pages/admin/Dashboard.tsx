@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,10 +15,10 @@ import {
 } from "react-icons/md";
 
 interface DashboardStats {
-  total: number;
-  completed: number;
-  inProgress: number;
-  pending: number;
+  total: number;       // drivers that have at least one task
+  completed: number;   // drivers whose latest task is completed
+  inProgress: number;  // drivers whose latest task is in-progress
+  pending: number;     // drivers whose latest task is assigned
 }
 
 export default function AdminDashboard() {
@@ -30,28 +30,71 @@ export default function AdminDashboard() {
     pending: 0,
   });
 
-  useEffect(() => {
-    const q = query(collection(db, "tasks"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const today = new Date().toDateString();
-      const docs = snapshot.docs.map((d) => d.data());
-      
-      // Filter for Daywise Stats (Today Only)
-      const todayDocs = docs.filter((d: any) => {
-        const taskDate = d.createdAt?.toDate ? d.createdAt.toDate().toDateString() : new Date(d.date).toDateString();
-        return taskDate === today;
+useEffect(() => {
+  const qDrivers = query(collection(db, "users"), where("role", "==", "driver"));
+  const qTasks = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
+
+  const unsubDrivers = onSnapshot(qDrivers, (driverSnap) => {
+    const drivers = driverSnap.docs.map((d) => ({
+      id: d.id,
+      name: d.data().name,
+    }));
+
+    const unsubTasks = onSnapshot(qTasks, (taskSnap) => {
+      const allTasks = taskSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as any[];
+
+      // Group tasks by driverId
+      const tasksByDriver: Record<string, any[]> = {};
+      allTasks.forEach((task) => {
+        if (!task.driverId) return;
+        if (!tasksByDriver[task.driverId]) tasksByDriver[task.driverId] = [];
+        tasksByDriver[task.driverId].push(task);
       });
 
+      // Build "latest task per driver" list (same as DutyRecords `status === "all"`)
+      const latestTasksPerDriver: { driverId: string; status: string }[] = [];
+
+      Object.keys(tasksByDriver).forEach((driverId) => {
+        const driverTasks = tasksByDriver[driverId];
+
+        const sorted = [...driverTasks].sort((a, b) => {
+          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+          return bTime - aTime;
+        });
+
+        const latest = sorted[0];
+        if (latest) {
+          latestTasksPerDriver.push({
+            driverId,
+            status: latest.status,
+          });
+        }
+      });
+
+      // Now count by latest status
+      const total = latestTasksPerDriver.length;
+      const completed = latestTasksPerDriver.filter((t) => t.status === "completed").length;
+      const inProgress = latestTasksPerDriver.filter((t) => t.status === "in-progress").length;
+      const pending = latestTasksPerDriver.filter((t) => t.status === "assigned").length;
+
       setStats({
-        total: todayDocs.length,
-        completed: todayDocs.filter((d) => d.status === "completed").length,
-        inProgress: todayDocs.filter((d) => d.status === "in-progress").length,
-        pending: todayDocs.filter((d) => d.status === "assigned").length,
+        total,
+        completed,
+        inProgress,
+        pending,
       });
     });
 
-    return () => unsub();
-  }, []);
+    return () => unsubTasks();
+  });
+
+  return () => unsubDrivers();
+}, []);
+
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -91,17 +134,17 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        {/* ================= STATS GRID (TODAY'S STATS) ================= */}
+        {/* ================= STATS GRID (DRIVER-WISE LATEST STATUS) ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
           <StatCard
-            title="Today's Total"
+            title="Total Tasks"
             value={stats.total}
-            icon={<MdCheckCircleOutline />}
+            icon={<MdGroups />}
             color="indigo"
             onClick={() => navigate("/duty-records/all")}
           />
           <StatCard
-            title="Completed"
+            title="Active"
             value={stats.completed}
             icon={<MdCheckCircleOutline />}
             color="green"
@@ -163,7 +206,6 @@ export default function AdminDashboard() {
             <span className="text-slate-500 text-xs font-medium">Personnel records</span>
           </button>
 
-          {/* NEW: Daywise Report Button */}
           <button
             onClick={() => navigate("/daywise-report")}
             className="group flex flex-col items-start p-6 rounded-3xl bg-white border border-slate-200 text-slate-800 shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-300"
@@ -189,12 +231,19 @@ function StatCard({ title, value, icon, color, onClick }: any) {
   };
 
   return (
-    <div onClick={onClick} className={`relative cursor-pointer bg-white p-6 rounded-[2rem] border ${colorMap[color].border} shadow-sm overflow-hidden group hover:shadow-md transition-all active:scale-95`}>
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-300 ${colorMap[color].icon}`}>
+    <div
+      onClick={onClick}
+      className={`relative cursor-pointer bg-white p-6 rounded-[2rem] border ${colorMap[color].border} shadow-sm overflow-hidden group hover:shadow-md transition-all active:scale-95`}
+    >
+      <div
+        className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-300 ${colorMap[color].icon}`}
+      >
         <span className="text-2xl">{icon}</span>
       </div>
       <p className="text-3xl font-black text-slate-900 leading-none">{value}</p>
-      <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.15em]">{title}</p>
+      <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.15em]">
+        {title}
+      </p>
     </div>
   );
 }
